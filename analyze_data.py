@@ -78,6 +78,7 @@ q1_1_summary = list()
 q1_2_summary = list()
 q1_3_summary = list()
 
+
 def sum_of_lists(list1, list2):
     return_list = list()
     for a, b in zip(list1, list2):
@@ -150,7 +151,7 @@ def stats_freq(df):
     return result
 
 
-def get_frequencies(data_frame, column_name, thresholds=None, in_perc=False):
+def get_frequencies(data_frame, column_name, thresholds=None):
     frequencies_list = list()
     number_of_intervals = len(thresholds) - 1
     for idx in range(number_of_intervals):
@@ -158,15 +159,13 @@ def get_frequencies(data_frame, column_name, thresholds=None, in_perc=False):
         interval_end = thresholds[idx + 1]
         number_of_items = len(data_frame[(data_frame[column_name] > interval_start) &
                                          (data_frame[column_name] <= interval_end)])
-        if in_perc and len(data_frame) > 0:
-            number_of_items = round(number_of_items / len(data_frame) * 100, 1)
         frequencies_list.append(number_of_items)
     return frequencies_list
 
 
 def get_dataframe_with_frequencies_for_single_year(data_frame, column_name_for_frequencies,
                                                    column_name_for_periods, periods_dict,
-                                                   step, thresholds=None, in_perc=False):
+                                                   step, thresholds=None):
     # creating thresholds if they are not passed to the function
     if thresholds is None:
         unique_column_values = list(data_frame[column_name_for_frequencies].unique())
@@ -194,8 +193,7 @@ def get_dataframe_with_frequencies_for_single_year(data_frame, column_name_for_f
         data_frame_by_single_period = data_frame[data_frame[column_name_for_periods] == single_period]
         new_frequencies_for_single_period = get_frequencies(data_frame=data_frame_by_single_period,
                                                             column_name=column_name_for_frequencies,
-                                                            thresholds=thresholds,
-                                                            in_perc=in_perc)
+                                                            thresholds=thresholds)
         columns_dict[periods_dict[single_period]] = sum_of_lists(columns_dict[periods_dict[single_period]],
                                                                  new_frequencies_for_single_period)
     # secondly, transform the dict into a list
@@ -226,11 +224,21 @@ def get_dataframe_with_frequencies_for_single_year(data_frame, column_name_for_f
     return frequencies_data_frame
 
 
-def get_excel_with_frequencies_for_all_years(my_filter, column_name_for_periods, thresholds, periods_dict, excel_name):
+def convert_df_to_percentages_by_columns(df):
+    for column in df.columns:
+        if column not in {'from', 'to'}:
+            total = sum(df[column])
+            df[column] = df[column] / total * 100
+    return df
+
+
+def get_excel_with_frequencies_for_all_years(my_filter, column_name_for_periods, thresholds, periods_dict, excel_name,
+                                             in_percentages=True):
+    print('>>> ' + excel_name.replace('_', ' '))
     dataframes_dict = dict()
-    total_dict = pd.DataFrame()
+    summary_dataframe = pd.DataFrame()
     for idx, year in enumerate(years):
-        print('Analyzing data from year {}. Year {} out of {}'.format(year, idx + 1, len(years)))
+        print('Analyzing data from year {}. Year {} out of {}.'.format(year, idx + 1, len(years)))
         # get data from pickle
         data_frame = get_data_frame_from_pickle('pickles/pickle_{}.pkl'.format(year))
         # filter out cancelled flights
@@ -243,14 +251,21 @@ def get_excel_with_frequencies_for_all_years(my_filter, column_name_for_periods,
             column_name_for_periods=column_name_for_periods, step=100, periods_dict=periods_dict,
             thresholds=thresholds)
         # add frequencies to the summary dict
-        total_dict = total_dict.add(dataframes_dict[year], fill_value=0)
+        summary_dataframe = summary_dataframe.add(dataframes_dict[year], fill_value=0)
+
+    # change raw values to percentages
+    if in_percentages:
+        for year in years:
+            convert_df_to_percentages_by_columns(dataframes_dict[year])
+        convert_df_to_percentages_by_columns(summary_dataframe)
+
     # create excel files
     print(f'Saving all data into  "{excel_name}.xlsx."')
     with pd.ExcelWriter('excel_files/{}.xlsx'.format(excel_name)) as writer:
         for year in years:
             dataframes_dict[year].to_excel(writer, sheet_name=str(year))
         print(f'Saving summary data into  "{excel_name}.xlsx."')
-        total_dict.to_excel(writer, sheet_name='summary')
+        summary_dataframe.to_excel(writer, sheet_name='summary')
 
 
 def main():
