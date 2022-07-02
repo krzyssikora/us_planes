@@ -78,6 +78,12 @@ q1_1_summary = list()
 q1_2_summary = list()
 q1_3_summary = list()
 
+def sum_of_lists(list1, list2):
+    return_list = list()
+    for a, b in zip(list1, list2):
+        return_list.append(a + b)
+    return return_list
+
 
 def run_only_once_convert_csv_to_pickles():
     print('starting conversion of CSV yearly files to pickles')
@@ -190,8 +196,8 @@ def get_dataframe_with_frequencies_for_single_year(data_frame, column_name_for_f
                                                             column_name=column_name_for_frequencies,
                                                             thresholds=thresholds,
                                                             in_perc=in_perc)
-        for idx in range(len(new_frequencies_for_single_period)):
-            columns_dict[periods_dict[single_period]][idx] += new_frequencies_for_single_period[idx]
+        columns_dict[periods_dict[single_period]] = sum_of_lists(columns_dict[periods_dict[single_period]],
+                                                                 new_frequencies_for_single_period)
     # secondly, transform the dict into a list
     while True:
         if len(columns_dict_keys) == 0:
@@ -222,8 +228,9 @@ def get_dataframe_with_frequencies_for_single_year(data_frame, column_name_for_f
 
 def get_excel_with_frequencies_for_all_years(my_filter, column_name_for_periods, thresholds, periods_dict, excel_name):
     dataframes_dict = dict()
+    total_dict = pd.DataFrame()
     for idx, year in enumerate(years):
-        print('Getting data from year {}. {}/{}'.format(year, idx + 1, len(years)))
+        print('Analyzing data from year {}. Year {} out of {}'.format(year, idx + 1, len(years)))
         # get data from pickle
         data_frame = get_data_frame_from_pickle('pickles/pickle_{}.pkl'.format(year))
         # filter out cancelled flights
@@ -234,13 +241,16 @@ def get_excel_with_frequencies_for_all_years(my_filter, column_name_for_periods,
         dataframes_dict[year] = get_dataframe_with_frequencies_for_single_year(
             data_frame=data_frame, column_name_for_frequencies='ArrDelay',
             column_name_for_periods=column_name_for_periods, step=100, periods_dict=periods_dict,
-            thresholds=thresholds,
-            in_perc=True)
-        # create excel file
-    print(f'Saving all data into {excel_name}.')
+            thresholds=thresholds)
+        # add frequencies to the summary dict
+        total_dict = total_dict.add(dataframes_dict[year], fill_value=0)
+    # create excel files
+    print(f'Saving all data into  "{excel_name}.xlsx."')
     with pd.ExcelWriter('excel_files/{}.xlsx'.format(excel_name)) as writer:
         for year in years:
             dataframes_dict[year].to_excel(writer, sheet_name=str(year))
+        print(f'Saving summary data into  "{excel_name}.xlsx."')
+        total_dict.to_excel(writer, sheet_name='summary')
 
 
 def main():
