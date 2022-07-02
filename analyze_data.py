@@ -5,8 +5,8 @@ import math
 
 
 # global variables
-# years = [year for year in range(1987, 2009)]
-years = [year for year in range(1987, 1990)]
+years = [year for year in range(1987, 2009)]
+# years = [year for year in range(1987, 1990)]
 months = {1: 'January',
           2: 'February',
           3: 'March',
@@ -113,10 +113,6 @@ def get_data_frame_from_pickle(pickle_name, print_info=False):
     if print_info:
         print('Getting data from pickle {}.'.format(pickle_name))
     return pd.read_pickle(pickle_name)
-    # alternatively:
-    # store = pd.HDFStore('store.h5')
-    # store['df'] = df  # save it
-    # store['df']  # load it
 
 
 def stats_freq(df):
@@ -181,8 +177,10 @@ def get_dataframe_with_frequencies_for_single_year(data_frame, column_name_for_f
     list_to = thresholds[1:]
 
     # create list of column values
+    # firstly, 2 columns showing intervals
     columns = [list_from, list_to]
-    # firstly, create a dict where keys are values from period dict
+
+    # secondly, create a dict where keys are values from period dict
     # (i.e. for example names of days, of months or of times of day) and values are lists of frequencies
     columns_dict = dict()
     columns_dict_keys = set(periods_dict.values())
@@ -196,7 +194,7 @@ def get_dataframe_with_frequencies_for_single_year(data_frame, column_name_for_f
                                                             thresholds=thresholds)
         columns_dict[periods_dict[single_period]] = sum_of_lists(columns_dict[periods_dict[single_period]],
                                                                  new_frequencies_for_single_period)
-    # secondly, transform the dict into a list
+    # thirdly, transform the dict into a list
     while True:
         if len(columns_dict_keys) == 0:
             break
@@ -239,17 +237,22 @@ def get_excel_with_frequencies_for_all_years(my_filter, column_name_for_periods,
     summary_dataframe = pd.DataFrame()
     for idx, year in enumerate(years):
         print('Analyzing data from year {}. Year {} out of {}.'.format(year, idx + 1, len(years)))
+
         # get data from pickle
         data_frame = get_data_frame_from_pickle('pickles/pickle_{}.pkl'.format(year))
+
         # filter out cancelled flights
         data_frame = data_frame[data_frame['Cancelled'] == 0]
+
         # filter only the columns that we may need
         data_frame = data_frame.filter(my_filter)
+
         # get frequencies per day in a dataframe
         dataframes_dict[year] = get_dataframe_with_frequencies_for_single_year(
             data_frame=data_frame, column_name_for_frequencies='ArrDelay',
             column_name_for_periods=column_name_for_periods, step=100, periods_dict=periods_dict,
             thresholds=thresholds)
+
         # add frequencies to the summary dict
         summary_dataframe = summary_dataframe.add(dataframes_dict[year], fill_value=0)
 
@@ -270,37 +273,37 @@ def get_excel_with_frequencies_for_all_years(my_filter, column_name_for_periods,
 
 def main():
     # run_only_once_convert_csv_to_pickles()
-    filter_0 = [
-        "Year",
-        "Month",
-        "DayofMonth",
-        "DayOfWeek",
-        "DepTime",
-        "CRSDepTime",
-        "ArrTime",
-        "CRSArrTime",
-        "UniqueCarrier",
-        "FlightNum",
-        "TailNum",
-        "ActualElapsedTime",
-        "CRSElapsedTime",
-        "AirTime",
-        "ArrDelay",
-        "DepDelay",
-        "Origin",
-        "Dest",
-        "Distance",
-        "TaxiIn",
-        "TaxiOut",
-        # "Cancelled",
-        # "CancellationCode",
-        # "Diverted",
-        # "CarrierDelay",
-        # "WeatherDelay",
-        # "NASDelay",
-        # "SecurityDelay",
-        # "LateAircraftDelay"
-    ]
+    # filter_0 = [
+    #     "Year",
+    #     "Month",
+    #     "DayofMonth",
+    #     "DayOfWeek",
+    #     "DepTime",
+    #     "CRSDepTime",
+    #     "ArrTime",
+    #     "CRSArrTime",
+    #     "UniqueCarrier",
+    #     "FlightNum",
+    #     "TailNum",
+    #     "ActualElapsedTime",
+    #     "CRSElapsedTime",
+    #     "AirTime",
+    #     "ArrDelay",
+    #     "DepDelay",
+    #     "Origin",
+    #     "Dest",
+    #     "Distance",
+    #     "TaxiIn",
+    #     "TaxiOut",
+    #     "Cancelled",
+    #     "CancellationCode",
+    #     "Diverted",
+    #     "CarrierDelay",
+    #     "WeatherDelay",
+    #     "NASDelay",
+    #     "SecurityDelay",
+    #     "LateAircraftDelay"
+    # ]
     # Question 1. When is the best time to fly to minimise delays?
     # 1.1 time of day
     filter_1_1 = [
@@ -355,3 +358,7 @@ if __name__ == '__main__':
 #     df = pd.concat(map(lambda file: pd.read_csv(file, encoding="ISO-8859-1"), csv_files_list), ignore_index=True)
 #     df.to_pickle(pickle_name)
 #     print('conversion complete')
+    # alternative way of getting data from pickle:
+    # store = pd.HDFStore('store.h5')
+    # store['df'] = df  # save it
+    # store['df']  # load it
