@@ -31,7 +31,7 @@ days_of_week = {1: 'Monday',
                 }
 
 times_of_day = dict()
-for time in range(0, 2400):
+for time in range(0, 2401):
     if 500 <= time < 1200:
         times_of_day[time] = 'morning'
     elif 1200 <= time < 1700:
@@ -137,52 +137,29 @@ def get_dataframe_with_frequencies_for_single_year(data_frame, column_name_for_f
         thresholds = thresholds[:position_zero] + [-15, 15] + thresholds[position_zero + 1:]
 
     # create lists for 'from' and 'to' columns of our spreadsheet
-    list_from = thresholds[:-1]
-    list_to = thresholds[1:]
+    data_frame_dict = {'from': thresholds[:-1],
+                       'to': thresholds[1:]}
 
-    # create list of column values
-    # firstly, 2 columns showing intervals
-    columns = [list_from, list_to]
-
-    # secondly, create a dict where keys are values from period dict
+    # create a dict where keys are values from period dict
     # (i.e. for example names of days, of months or of times of day) and values are lists of frequencies
     columns_dict = dict()
-    columns_dict_keys = set(periods_dict.values())
-    # initial frequencies are 0
-    for key in columns_dict_keys:
-        columns_dict[key] = [0 for _ in range(len(thresholds) - 1)]
-    for single_period in periods_dict:
-        data_frame_by_single_period = data_frame[data_frame[column_name_for_periods] == single_period]
-        new_frequencies_for_single_period = get_frequencies(data_frame=data_frame_by_single_period,
-                                                            column_name=column_name_for_frequencies,
-                                                            thresholds=thresholds)
-        columns_dict[periods_dict[single_period]] = sum_of_lists(columns_dict[periods_dict[single_period]],
-                                                                 new_frequencies_for_single_period)
-    # thirdly, transform the dict into a list
-    while True:
-        if len(columns_dict_keys) == 0:
-            break
-        for single_period in periods_dict:
-            period_name = periods_dict[single_period]
-            if period_name in columns_dict_keys:
-                columns_dict_keys.remove(period_name)
-                columns.append(columns_dict[period_name])
-
-    # convert column data to row data
-    rows = [list() for _ in range(len(thresholds) - 1)]
-    for column in columns:
-        for elt, row in zip(column, rows):
-            row.append(elt)
-
-    # create list of column names
-    column_names = ['from', 'to']
-    for single_period in periods_dict.keys():
-        column_name = periods_dict[single_period]
-        if column_name not in column_names:
-            column_names.append(periods_dict[single_period])
-
+    # add a column in data frame with names of periods
+    data_frame.insert(len(data_frame.columns), 'temporary',
+                      [periods_dict[val] for val in data_frame[column_name_for_periods]])
+    for period_name in periods_dict.values():
+        data_frame_by_single_period = data_frame[data_frame['temporary'] == period_name]
+        columns_dict[period_name] = get_frequencies(data_frame=data_frame_by_single_period,
+                                                    column_name=column_name_for_frequencies,
+                                                    thresholds=thresholds)
     # create pandas data frame from our frequencies
-    frequencies_data_frame = pd.DataFrame(rows, columns=column_names)
+    frequencies_data_frame = pd.DataFrame(columns_dict)
+    # order columns as in the dictionary
+    ordered_columns = list()
+    period_names_temp = [name for period, name in sorted(periods_dict.items(), key=lambda x: x[0])]
+    for name in period_names_temp:
+        if name not in ordered_columns:
+            ordered_columns.append(name)
+    frequencies_data_frame = frequencies_data_frame[ordered_columns]
     return frequencies_data_frame
 
 
