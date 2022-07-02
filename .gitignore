@@ -72,3 +72,5 @@ pickles/pickle_plane-data.pkl
 pickles/pickle_variable-descriptions.pkl
 
 questions.md
+
+*.xlsx

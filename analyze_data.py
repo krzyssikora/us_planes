@@ -5,8 +5,8 @@ import math
 
 
 # global variables
-years = [year for year in range(1987, 2009)]
-# years = [year for year in range(1987, 1990)]
+# years = [year for year in range(1987, 2009)]
+years = [year for year in range(1987, 1990)]
 months = {1: 'January',
           2: 'February',
           3: 'March',
@@ -30,7 +30,6 @@ days_of_week = {1: 'Monday',
                 7: 'Sunday'
                 }
 
-# TODO create 'times_of_day' dictionary with keys 0000, 0001, 0002, ... 2359 and values like below
 times_of_day = dict()
 for time in range(0, 2400):
     if 500 <= time < 1200:
@@ -101,15 +100,6 @@ def run_only_once_convert_csv_to_pickles():
             pd.read_csv(os.path.join(folder, file), encoding='ISO-8859-1').to_pickle(
                 os.path.join('pickles', 'pickle_' + filename + '.pkl'))
     print('conversion complete')
-
-
-# def convert_csv_data_into_pickle(pickle_name='all_data.pkl'):
-#     print('starting conversion')
-#     csv_files_list = ['dataverse_files/data_years/' + str(year) + '.csv' for year in years]
-#     # merging csv files
-#     df = pd.concat(map(lambda file: pd.read_csv(file, encoding="ISO-8859-1"), csv_files_list), ignore_index=True)
-#     df.to_pickle(pickle_name)
-#     print('conversion complete')
 
 
 def get_data_frame_from_pickle(pickle_name, print_info=False):
@@ -187,10 +177,30 @@ def get_dataframe_with_frequencies_for_single_year(data_frame, column_name_for_f
 
     # create list of column values
     columns = [list_from, list_to]
-    for single_period in periods_dict.keys():
+    # firstly, create a dict where keys are values from period dict
+    # (i.e. for example names of days, of months or of times of day) and values are lists of frequencies
+    columns_dict = dict()
+    columns_dict_keys = set(periods_dict.values())
+    # initial frequencies are 0
+    for key in columns_dict_keys:
+        columns_dict[key] = [0 for _ in range(len(thresholds) - 1)]
+    for single_period in periods_dict:
         data_frame_by_single_period = data_frame[data_frame[column_name_for_periods] == single_period]
-        columns.append(get_frequencies(data_frame=data_frame_by_single_period, column_name=column_name_for_frequencies,
-                                       thresholds=thresholds, in_perc=in_perc))
+        new_frequencies_for_single_period = get_frequencies(data_frame=data_frame_by_single_period,
+                                                            column_name=column_name_for_frequencies,
+                                                            thresholds=thresholds,
+                                                            in_perc=in_perc)
+        for idx in range(len(new_frequencies_for_single_period)):
+            columns_dict[periods_dict[single_period]][idx] += new_frequencies_for_single_period[idx]
+    # secondly, transform the dict into a list
+    while True:
+        if len(columns_dict_keys) == 0:
+            break
+        for single_period in periods_dict:
+            period_name = periods_dict[single_period]
+            if period_name in columns_dict_keys:
+                columns_dict_keys.remove(period_name)
+                columns.append(columns_dict[period_name])
 
     # convert column data to row data
     rows = [list() for _ in range(len(thresholds) - 1)]
@@ -201,7 +211,9 @@ def get_dataframe_with_frequencies_for_single_year(data_frame, column_name_for_f
     # create list of column names
     column_names = ['from', 'to']
     for single_period in periods_dict.keys():
-        column_names.append(periods_dict[single_period])
+        column_name = periods_dict[single_period]
+        if column_name not in column_names:
+            column_names.append(periods_dict[single_period])
 
     # create pandas data frame from our frequencies
     frequencies_data_frame = pd.DataFrame(rows, columns=column_names)
@@ -310,3 +322,11 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+# def convert_csv_data_into_pickle(pickle_name='all_data.pkl'):
+#     print('starting conversion')
+#     csv_files_list = ['dataverse_files/data_years/' + str(year) + '.csv' for year in years]
+#     # merging csv files
+#     df = pd.concat(map(lambda file: pd.read_csv(file, encoding="ISO-8859-1"), csv_files_list), ignore_index=True)
+#     df.to_pickle(pickle_name)
+#     print('conversion complete')
