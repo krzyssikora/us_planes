@@ -74,10 +74,6 @@ years_data_types = {'Year': int,
                     'LateAircraftDelay': float
                     }
 
-q1_1_summary = list()
-q1_2_summary = list()
-q1_3_summary = list()
-
 
 def sum_of_lists(list1, list2):
     return_list = list()
@@ -113,38 +109,6 @@ def get_data_frame_from_pickle(pickle_name, print_info=False):
     if print_info:
         print('Getting data from pickle {}.'.format(pickle_name))
     return pd.read_pickle(pickle_name)
-
-
-def stats_freq(df):
-    columns = list(df.columns)
-    values = df[columns[0]]
-    freqs = df[columns[1]]
-    cumcount = freqs.cumsum()
-    count = freqs.sum()
-    mean = (values * freqs).sum() / count
-    variance = (values ** 2 * freqs).sum() / count - mean ** 2
-    std = math.sqrt(variance)
-    minimum = values.min()
-    maximum = values.max()
-    quartiles = list()
-    q_ind = 0
-    q_list = [0.25 * count, 0.5 * count, 0.75 * count]
-    q = q_list[q_ind]
-    while True:
-        for i in range(len(df.index)):
-            if list(cumcount)[i] >= q:
-                quartiles.append(list(values)[i])
-                q_ind += 1
-                if q_ind >= 3:
-                    break
-                else:
-                    q = q_list[q_ind]
-        if q_ind >= 3:
-            break
-    q1, q2, q3 = quartiles[0], quartiles[1], quartiles[2]
-    idx = ['count', 'mean', 'std', 'min', '25%', '50%', '75%', 'max']
-    result = pd.Series([count, mean, std, minimum, q1, q2, q3, maximum], index=idx)
-    return result
 
 
 def get_frequencies(data_frame, column_name, thresholds=None):
