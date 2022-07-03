@@ -146,7 +146,7 @@ def get_dataframe_with_frequencies_for_single_year(data_frame, column_name_for_f
     # add a column in data frame with names of periods
     data_frame.insert(len(data_frame.columns), 'temporary',
                       [periods_dict[val] for val in data_frame[column_name_for_periods]])
-    for period_name in periods_dict.values():
+    for period_name in set(periods_dict.values()):
         data_frame_by_single_period = data_frame[data_frame['temporary'] == period_name]
         columns_dict[period_name] = get_frequencies(data_frame=data_frame_by_single_period,
                                                     column_name=column_name_for_frequencies,
