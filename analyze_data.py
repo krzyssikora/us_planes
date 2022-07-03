@@ -3,11 +3,12 @@ import os
 import math
 from datetime import datetime
 # import numpy
+from datetime import datetime
 
 
 # global variables
 years = [year for year in range(1987, 2009)]
-# years = [year for year in range(1987, 1990)]
+# years = [year for year in range(1987, 1989)]
 months = {1: 'January',
           2: 'February',
           3: 'March',
@@ -137,53 +138,29 @@ def get_dataframe_with_frequencies_for_single_year(data_frame, column_name_for_f
         position_zero = thresholds.index(0)
         thresholds = thresholds[:position_zero] + [-15, 15] + thresholds[position_zero + 1:]
 
-    # create lists for 'from' and 'to' columns of our spreadsheet
-    list_from = thresholds[:-1]
-    list_to = thresholds[1:]
-
-    # create list of column values
-    # firstly, 2 columns showing intervals
-    columns = [list_from, list_to]
-
-    # secondly, create a dict where keys are values from period dict
     # (i.e. for example names of days, of months or of times of day) and values are lists of frequencies
-    columns_dict = dict()
-    columns_dict_keys = set(periods_dict.values())
-    # initial frequencies are 0
-    for key in columns_dict_keys:
-        columns_dict[key] = [0 for _ in range(len(thresholds) - 1)]
-    for single_period in periods_dict:
-        data_frame_by_single_period = data_frame[data_frame[column_name_for_periods] == single_period]
-        new_frequencies_for_single_period = get_frequencies(data_frame=data_frame_by_single_period,
-                                                            column_name=column_name_for_frequencies,
-                                                            thresholds=thresholds)
-        columns_dict[periods_dict[single_period]] = sum_of_lists(columns_dict[periods_dict[single_period]],
-                                                                 new_frequencies_for_single_period)
-    # thirdly, transform the dict into a list
-    while True:
-        if len(columns_dict_keys) == 0:
-            break
-        for single_period in periods_dict:
-            period_name = periods_dict[single_period]
-            if period_name in columns_dict_keys:
-                columns_dict_keys.remove(period_name)
-                columns.append(columns_dict[period_name])
-
-    # convert column data to row data
-    rows = [list() for _ in range(len(thresholds) - 1)]
-    for column in columns:
-        for elt, row in zip(column, rows):
-            row.append(elt)
-
-    # create list of column names
-    column_names = ['from', 'to']
-    for single_period in periods_dict.keys():
-        column_name = periods_dict[single_period]
-        if column_name not in column_names:
-            column_names.append(periods_dict[single_period])
-
+    # add a column in data frame with names of periods
+    data_frame.insert(len(data_frame.columns), 'temporary',
+                      [periods_dict.get(val, periods_dict.get(val % len(periods_dict), None))
+                       for val in data_frame[column_name_for_periods]])
+    # create a dict where keys are values from period dict
+    columns_dict = {'from': thresholds[:-1],
+                       'to': thresholds[1:]}
+    for period_name in set(periods_dict.values()):
+        data_frame_by_single_period = data_frame[data_frame['temporary'] == period_name]
+        columns_dict[period_name] = get_frequencies(data_frame=data_frame_by_single_period,
+                                                    column_name=column_name_for_frequencies,
+                                                    thresholds=thresholds)
     # create pandas data frame from our frequencies
-    frequencies_data_frame = pd.DataFrame(rows, columns=column_names)
+    frequencies_data_frame = pd.DataFrame(columns_dict)
+    # order columns as in the dictionary
+    ordered_columns = list()
+    period_names_temp = [name for period, name in sorted(periods_dict.items(), key=lambda x: x[0])]
+    for name in period_names_temp:
+        if name not in ordered_columns:
+            ordered_columns.append(name)
+    ordered_columns = ['from', 'to'] + ordered_columns
+    frequencies_data_frame = frequencies_data_frame[ordered_columns]
     return frequencies_data_frame
 
 
@@ -199,7 +176,9 @@ def get_excel_with_frequencies_for_all_years(my_filter, column_name_for_periods,
                                              in_percentages=True):
     print('>>> ' + excel_name.replace('_', ' '))
     dataframes_dict = dict()
-    summary_dataframe = pd.DataFrame()
+    summary_frequencies = pd.DataFrame()
+    summary_statistics = pd.DataFrame()
+    arr_delays_gathered = pd.DataFrame()
     for idx, year in enumerate(years):
         print('Analyzing data from year {}. Year {} out of {}.'.format(year, idx + 1, len(years)))
 
@@ -218,14 +197,20 @@ def get_excel_with_frequencies_for_all_years(my_filter, column_name_for_periods,
             column_name_for_periods=column_name_for_periods, step=100, periods_dict=periods_dict,
             thresholds=thresholds)
 
-        # add frequencies to the summary dict
-        summary_dataframe = summary_dataframe.add(dataframes_dict[year], fill_value=0)
+        # add frequencies to the dataframe
+        summary_frequencies = summary_frequencies.add(dataframes_dict[year], fill_value=0)
+        # add summary stats to dataframe
+        summary_statistics[year] = data_frame[['ArrDelay']].describe()
+        # collect all ArrDelay
+        arr_delays_gathered = arr_delays_gathered.append(data_frame.filter(['ArrDelay']))
 
+    # add ArrDelays collected to summary stats
+    summary_statistics['total'] = arr_delays_gathered[['ArrDelay']].describe()
     # change raw values to percentages
     if in_percentages:
         for year in years:
             convert_df_to_percentages_by_columns(dataframes_dict[year])
-        convert_df_to_percentages_by_columns(summary_dataframe)
+        convert_df_to_percentages_by_columns(summary_frequencies)
 
     # create excel files
     print(f'Saving all data into  "{excel_name}.xlsx."')
@@ -233,7 +218,9 @@ def get_excel_with_frequencies_for_all_years(my_filter, column_name_for_periods,
         for year in years:
             dataframes_dict[year].to_excel(writer, sheet_name=str(year))
         print(f'Saving summary data into  "{excel_name}.xlsx."')
-        summary_dataframe.to_excel(writer, sheet_name='summary')
+        summary_frequencies.to_excel(writer, sheet_name='summary')
+        print(f'Saving summary stats into  "{excel_name}.xlsx."')
+        summary_statistics.to_excel(writer, sheet_name='stats')
 
 
 def main():
@@ -270,6 +257,7 @@ def main():
     #     "LateAircraftDelay"
     # ]
     t0 = datetime.now()
+
     # Question 1. When is the best time to fly to minimise delays?
     # 1.1 time of day
     filter_1_1 = [
