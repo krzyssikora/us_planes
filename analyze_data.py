@@ -137,17 +137,14 @@ def get_dataframe_with_frequencies_for_single_year(data_frame, column_name_for_f
         position_zero = thresholds.index(0)
         thresholds = thresholds[:position_zero] + [-15, 15] + thresholds[position_zero + 1:]
 
-    # create lists for 'from' and 'to' columns of our spreadsheet
-    data_frame_dict = {'from': thresholds[:-1],
-                       'to': thresholds[1:]}
-
-    # create a dict where keys are values from period dict
     # (i.e. for example names of days, of months or of times of day) and values are lists of frequencies
-    columns_dict = dict()
     # add a column in data frame with names of periods
     data_frame.insert(len(data_frame.columns), 'temporary',
                       [periods_dict.get(val, periods_dict.get(val % len(periods_dict), None))
                        for val in data_frame[column_name_for_periods]])
+    # create a dict where keys are values from period dict
+    columns_dict = {'from': thresholds[:-1],
+                       'to': thresholds[1:]}
     for period_name in set(periods_dict.values()):
         data_frame_by_single_period = data_frame[data_frame['temporary'] == period_name]
         columns_dict[period_name] = get_frequencies(data_frame=data_frame_by_single_period,
@@ -161,6 +158,7 @@ def get_dataframe_with_frequencies_for_single_year(data_frame, column_name_for_f
     for name in period_names_temp:
         if name not in ordered_columns:
             ordered_columns.append(name)
+    ordered_columns = ['from', 'to'] + ordered_columns
     frequencies_data_frame = frequencies_data_frame[ordered_columns]
     return frequencies_data_frame
 
