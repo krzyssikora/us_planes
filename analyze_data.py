@@ -2,11 +2,12 @@ import pandas as pd
 import os
 import math
 # import numpy
+from datetime import datetime
 
 
 # global variables
 years = [year for year in range(1987, 2009)]
-# years = [year for year in range(1987, 1990)]
+# years = [year for year in range(1987, 1989)]
 months = {1: 'January',
           2: 'February',
           3: 'March',
@@ -31,7 +32,7 @@ days_of_week = {1: 'Monday',
                 }
 
 times_of_day = dict()
-for time in range(0, 2401):
+for time in range(0, 2400):
     if 500 <= time < 1200:
         times_of_day[time] = 'morning'
     elif 1200 <= time < 1700:
@@ -145,7 +146,8 @@ def get_dataframe_with_frequencies_for_single_year(data_frame, column_name_for_f
     columns_dict = dict()
     # add a column in data frame with names of periods
     data_frame.insert(len(data_frame.columns), 'temporary',
-                      [periods_dict[val] for val in data_frame[column_name_for_periods]])
+                      [periods_dict.get(val, periods_dict.get(val % len(periods_dict), None))
+                       for val in data_frame[column_name_for_periods]])
     for period_name in set(periods_dict.values()):
         data_frame_by_single_period = data_frame[data_frame['temporary'] == period_name]
         columns_dict[period_name] = get_frequencies(data_frame=data_frame_by_single_period,
@@ -175,7 +177,9 @@ def get_excel_with_frequencies_for_all_years(my_filter, column_name_for_periods,
                                              in_percentages=True):
     print('>>> ' + excel_name.replace('_', ' '))
     dataframes_dict = dict()
-    summary_dataframe = pd.DataFrame()
+    summary_frequencies = pd.DataFrame()
+    summary_statistics = pd.DataFrame()
+    arr_delays_gathered = pd.DataFrame()
     for idx, year in enumerate(years):
         print('Analyzing data from year {}. Year {} out of {}.'.format(year, idx + 1, len(years)))
 
@@ -194,14 +198,20 @@ def get_excel_with_frequencies_for_all_years(my_filter, column_name_for_periods,
             column_name_for_periods=column_name_for_periods, step=100, periods_dict=periods_dict,
             thresholds=thresholds)
 
-        # add frequencies to the summary dict
-        summary_dataframe = summary_dataframe.add(dataframes_dict[year], fill_value=0)
+        # add frequencies to the dataframe
+        summary_frequencies = summary_frequencies.add(dataframes_dict[year], fill_value=0)
+        # add summary stats to dataframe
+        summary_statistics[year] = data_frame[['ArrDelay']].describe()
+        # collect all ArrDelay
+        arr_delays_gathered = arr_delays_gathered.append(data_frame.filter(['ArrDelay']))
 
+    # add ArrDelays collected to summary stats
+    summary_statistics['total'] = arr_delays_gathered[['ArrDelay']].describe()
     # change raw values to percentages
     if in_percentages:
         for year in years:
             convert_df_to_percentages_by_columns(dataframes_dict[year])
-        convert_df_to_percentages_by_columns(summary_dataframe)
+        convert_df_to_percentages_by_columns(summary_frequencies)
 
     # create excel files
     print(f'Saving all data into  "{excel_name}.xlsx."')
@@ -209,7 +219,9 @@ def get_excel_with_frequencies_for_all_years(my_filter, column_name_for_periods,
         for year in years:
             dataframes_dict[year].to_excel(writer, sheet_name=str(year))
         print(f'Saving summary data into  "{excel_name}.xlsx."')
-        summary_dataframe.to_excel(writer, sheet_name='summary')
+        summary_frequencies.to_excel(writer, sheet_name='summary')
+        print(f'Saving summary stats into  "{excel_name}.xlsx."')
+        summary_statistics.to_excel(writer, sheet_name='stats')
 
 
 def main():
@@ -245,6 +257,8 @@ def main():
     #     "SecurityDelay",
     #     "LateAircraftDelay"
     # ]
+
+    t0 = datetime.now()
     # Question 1. When is the best time to fly to minimise delays?
     # 1.1 time of day
     filter_1_1 = [
@@ -276,6 +290,8 @@ def main():
                                              thresholds=[-1300, -90, -15, 15, 60, 120, 180, 300, 600, 1200, 1500],
                                              periods_dict=months,
                                              excel_name='frequencies_for_months')
+    t1 = datetime.now()
+    print(t1 - t0)
 
 # for later use:
 # print(data_frame['Cancelled'].value_counts())
