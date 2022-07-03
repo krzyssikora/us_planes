@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 import math
+from datetime import datetime
 # import numpy
 
 
@@ -268,6 +269,7 @@ def main():
     #     "SecurityDelay",
     #     "LateAircraftDelay"
     # ]
+    t0 = datetime.now()
     # Question 1. When is the best time to fly to minimise delays?
     # 1.1 time of day
     filter_1_1 = [
@@ -299,6 +301,8 @@ def main():
                                              thresholds=[-1300, -90, -15, 15, 60, 120, 180, 300, 600, 1200, 1500],
                                              periods_dict=months,
                                              excel_name='frequencies_for_months')
+    t1 = datetime.now()
+    print(t1 - t0)
 
 # for later use:
 # print(data_frame['Cancelled'].value_counts())
