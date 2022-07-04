@@ -1,7 +1,6 @@
 import pandas as pd
 import os
 import math
-from datetime import datetime
 # import numpy
 from datetime import datetime
 
@@ -145,7 +144,7 @@ def get_dataframe_with_frequencies_for_single_year(data_frame, column_name_for_f
                        for val in data_frame[column_name_for_periods]])
     # create a dict where keys are values from period dict
     columns_dict = {'from': thresholds[:-1],
-                       'to': thresholds[1:]}
+                    'to': thresholds[1:]}
     for period_name in set(periods_dict.values()):
         data_frame_by_single_period = data_frame[data_frame['temporary'] == period_name]
         columns_dict[period_name] = get_frequencies(data_frame=data_frame_by_single_period,
@@ -223,41 +222,7 @@ def get_excel_with_frequencies_for_all_years(my_filter, column_name_for_periods,
         summary_statistics.to_excel(writer, sheet_name='stats')
 
 
-def main():
-    # run_only_once_convert_csv_to_pickles()
-    # filter_0 = [
-    #     "Year",
-    #     "Month",
-    #     "DayofMonth",
-    #     "DayOfWeek",
-    #     "DepTime",
-    #     "CRSDepTime",
-    #     "ArrTime",
-    #     "CRSArrTime",
-    #     "UniqueCarrier",
-    #     "FlightNum",
-    #     "TailNum",
-    #     "ActualElapsedTime",
-    #     "CRSElapsedTime",
-    #     "AirTime",
-    #     "ArrDelay",
-    #     "DepDelay",
-    #     "Origin",
-    #     "Dest",
-    #     "Distance",
-    #     "TaxiIn",
-    #     "TaxiOut",
-    #     "Cancelled",
-    #     "CancellationCode",
-    #     "Diverted",
-    #     "CarrierDelay",
-    #     "WeatherDelay",
-    #     "NASDelay",
-    #     "SecurityDelay",
-    #     "LateAircraftDelay"
-    # ]
-    t0 = datetime.now()
-
+def question_1():
     # Question 1. When is the best time to fly to minimise delays?
     # 1.1 time of day
     filter_1_1 = [
@@ -289,8 +254,132 @@ def main():
                                              thresholds=[-1300, -90, -15, 15, 60, 120, 180, 300, 600, 1200, 1500],
                                              periods_dict=months,
                                              excel_name='frequencies_for_months')
+
+
+def show(data_frame, rows):
+    print(data_frame.head(rows))
+    print(data_frame.tail(rows))
+    print('There are {} of records in the data frame.'.format(len(data_frame)))
+
+
+def question_4():
+    # get planes data
+    planes_data_frame = get_data_frame_from_pickle('pickles/pickle_plane-data.pkl')
+    # only tail number and model are in our concern
+    planes_data_frame = planes_data_frame.filter(['tailnum', 'model'])
+    # filter out when model is not given
+    planes_data_frame = planes_data_frame.dropna()
+    planes_data_frame = planes_data_frame.set_index('tailnum')
+    planes_dict = planes_data_frame.T.to_dict('index')['model']
+
+
+    # define small planes as those with capacity below 100 passengers
+    small_planes = ['EMB-145XR',
+                    'EMB-145LR',
+                    'EMB-135LR',
+                    'EMB-145EP',
+                    'EMB-135ER',
+                    'CL-600-2B19',
+                    'DC-9-31',
+                    '737-724'
+                    ]
+
+    # define large planes as those with capacity of at least 200 passengers
+    large_planes = ['757-224',
+                    'A321-211',
+                    '767-332',
+                    '767-3P6',
+                    '747-451',
+                    '747-422'
+                    ]
+
+    # consider year 2007
+    # get data from pickle
+    data_frame = get_data_frame_from_pickle('pickles/pickle_2007.pkl')
+    # as smaller flights (sometimes) wait for larger flights:
+    # firstly, we need large flights to JFK
+    filter_to = [
+        "Month",
+        "DayofMonth",
+        "TailNum",
+        "ArrTime",
+        "ArrDelay",
+        "Dest"
+    ]
+    data_frame_to_jfk = data_frame.filter(filter_to)
+    data_frame_to_jfk = data_frame_to_jfk[data_frame_to_jfk['Dest'] == 'JFK']
+    # let us consider only arrival delays of more than 60 minutes
+    data_frame_to_jfk = data_frame_to_jfk[data_frame_to_jfk['ArrDelay'] > 60]
+    # add a column in data frame with planes'models
+    data_frame_to_jfk.insert(len(data_frame_to_jfk.columns), 'model',
+                      [planes_dict.get(tailnumber) for tailnumber in data_frame_to_jfk['TailNum']])
+    # and now large flights, i.e. with max no of passengers at least 200
+    data_frame_to_jfk = data_frame_to_jfk[data_frame_to_jfk['model'].isin(large_planes)]
+    show(data_frame_to_jfk, 4)
+
+    # secondly, we need smaller flights from JFK
+    filter_from = [
+        "Month",
+        "DayofMonth",
+        "TailNum",
+        "DepTime",
+        "ArrDelay",
+        "DepDelay",
+        "Origin"
+    ]
+    data_frame_from_jfk = data_frame.filter(filter_from)
+    data_frame_from_jfk = data_frame_from_jfk[data_frame_from_jfk['Origin'] == 'JFK']
+    # let us consider only departure delays of more than 30 minutes
+    data_frame_from_jfk = data_frame_from_jfk[data_frame_from_jfk['DepDelay'] > 30]
+    # add a column in data frame with planes'models
+    data_frame_from_jfk.insert(len(data_frame_from_jfk.columns), 'model',
+                             [planes_dict.get(tailnumber) for tailnumber in data_frame_from_jfk['TailNum']])
+    # and now small flights, i.e. with max no of passengers at most 100
+    data_frame_from_jfk = data_frame_from_jfk[data_frame_from_jfk['model'].isin(small_planes)]
+    show(data_frame_from_jfk, 4)
+
+
+def main():
+    t0 = datetime.now()
+    # run_only_once_convert_csv_to_pickles()
+    # question_1()
+    question_4()
     t1 = datetime.now()
     print(t1 - t0)
+
+
+    # filter_0 = [
+    #     "Year",
+    #     "Month",
+    #     "DayofMonth",
+    #     "DayOfWeek",
+    #     "DepTime",
+    #     "CRSDepTime",
+    #     "ArrTime",
+    #     "CRSArrTime",
+    #     "UniqueCarrier",
+    #     "FlightNum",
+    #     "TailNum",
+    #     "ActualElapsedTime",
+    #     "CRSElapsedTime",
+    #     "AirTime",
+    #     "ArrDelay",
+    #     "DepDelay",
+    #     "Origin",
+    #     "Dest",
+    #     "Distance",
+    #     "TaxiIn",
+    #     "TaxiOut",
+    #     "Cancelled",
+    #     "CancellationCode",
+    #     "Diverted",
+    #     "CarrierDelay",
+    #     "WeatherDelay",
+    #     "NASDelay",
+    #     "SecurityDelay",
+    #     "LateAircraftDelay"
+    # ]
+
 
 # for later use:
 # print(data_frame['Cancelled'].value_counts())
