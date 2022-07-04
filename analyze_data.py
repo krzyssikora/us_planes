@@ -259,7 +259,24 @@ def question_1():
 def show(data_frame, rows):
     print(data_frame.head(rows))
     print(data_frame.tail(rows))
-    print('There are {} of records in the data frame.'.format(len(data_frame)))
+    print('There are {} records in the data frame.'.format(len(data_frame)))
+
+
+def get_jfk_data_frame(data_frame, initial_columns, which_is_jfk, which_delay, delay_value, models_list, planes_dict):
+    data_frame = data_frame.filter(initial_columns)
+    data_frame = data_frame[data_frame[which_is_jfk] == 'JFK']
+    # consider only 'which_delay' delays of more than 'delay_value' minutes
+    data_frame = data_frame[data_frame[which_delay] > delay_value]
+    # add a column in data frame with planes' models
+    data_frame.insert(len(data_frame.columns), 'model',
+                      [planes_dict.get(tailnumber) for tailnumber in data_frame['TailNum']])
+    # and now flights of certain type, e.g.
+    # large - with max no of passengers at least 200 or
+    # small - with max no of passengers at most 100
+    data_frame = data_frame[data_frame['model'].isin(models_list)]
+    data_frame = data_frame.reset_index()
+    data_frame = data_frame.filter(initial_columns[:-2])
+    return data_frame
 
 
 def question_4():
@@ -272,7 +289,6 @@ def question_4():
     planes_data_frame = planes_data_frame.set_index('tailnum')
     planes_dict = planes_data_frame.T.to_dict('index')['model']
 
-
     # define small planes as those with capacity below 100 passengers
     small_planes = ['EMB-145XR',
                     'EMB-145LR',
@@ -283,7 +299,6 @@ def question_4():
                     'DC-9-31',
                     '737-724'
                     ]
-
     # define large planes as those with capacity of at least 200 passengers
     large_planes = ['757-224',
                     'A321-211',
@@ -301,42 +316,47 @@ def question_4():
     filter_to = [
         "Month",
         "DayofMonth",
-        "TailNum",
         "ArrTime",
         "ArrDelay",
+        "TailNum",
         "Dest"
     ]
-    data_frame_to_jfk = data_frame.filter(filter_to)
-    data_frame_to_jfk = data_frame_to_jfk[data_frame_to_jfk['Dest'] == 'JFK']
-    # let us consider only arrival delays of more than 60 minutes
-    data_frame_to_jfk = data_frame_to_jfk[data_frame_to_jfk['ArrDelay'] > 60]
-    # add a column in data frame with planes'models
-    data_frame_to_jfk.insert(len(data_frame_to_jfk.columns), 'model',
-                      [planes_dict.get(tailnumber) for tailnumber in data_frame_to_jfk['TailNum']])
-    # and now large flights, i.e. with max no of passengers at least 200
-    data_frame_to_jfk = data_frame_to_jfk[data_frame_to_jfk['model'].isin(large_planes)]
+    data_frame_to_jfk = get_jfk_data_frame(data_frame=data_frame,
+                                           initial_columns=filter_to,
+                                           which_is_jfk='Dest',
+                                           which_delay='ArrDelay',
+                                           delay_value=60,
+                                           models_list=large_planes,
+                                           planes_dict=planes_dict)
     show(data_frame_to_jfk, 4)
 
-    # secondly, we need smaller flights from JFK
+    # secondly, we need small flights from JFK
     filter_from = [
         "Month",
         "DayofMonth",
-        "TailNum",
         "DepTime",
         "ArrDelay",
         "DepDelay",
+        "TailNum",
         "Origin"
     ]
-    data_frame_from_jfk = data_frame.filter(filter_from)
-    data_frame_from_jfk = data_frame_from_jfk[data_frame_from_jfk['Origin'] == 'JFK']
-    # let us consider only departure delays of more than 30 minutes
-    data_frame_from_jfk = data_frame_from_jfk[data_frame_from_jfk['DepDelay'] > 30]
-    # add a column in data frame with planes'models
-    data_frame_from_jfk.insert(len(data_frame_from_jfk.columns), 'model',
-                             [planes_dict.get(tailnumber) for tailnumber in data_frame_from_jfk['TailNum']])
-    # and now small flights, i.e. with max no of passengers at most 100
-    data_frame_from_jfk = data_frame_from_jfk[data_frame_from_jfk['model'].isin(small_planes)]
+    data_frame_from_jfk = get_jfk_data_frame(data_frame=data_frame,
+                                             initial_columns=filter_from,
+                                             which_is_jfk='Origin',
+                                             which_delay='DepDelay',
+                                             delay_value=30,
+                                             models_list=small_planes,
+                                             planes_dict=planes_dict)
     show(data_frame_from_jfk, 4)
+
+    for index, row in data_frame_to_jfk.iterrows():
+        plane_late_to_jfk = (row['Month'], row['DayofMonth'], row['ArrTime'], row['ArrDelay'])
+        cascade_planes_df = data_frame_from_jfk[
+            data_frame_from_jfk['Month'] == row['Month'] &
+            data_frame_from_jfk['DayofMonth'] == row['DayofMonth'] &
+            data_frame_from_jfk['DepTime'] > row['ArrTime']
+        ]
+        # TODO take into account planned times
 
 
 def main():
@@ -346,7 +366,6 @@ def main():
     question_4()
     t1 = datetime.now()
     print(t1 - t0)
-
 
     # filter_0 = [
     #     "Year",
