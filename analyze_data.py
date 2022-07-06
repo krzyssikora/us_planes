@@ -2,7 +2,7 @@ import pandas as pd
 import os
 import math
 # import numpy
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 # global variables
@@ -262,6 +262,51 @@ def show(data_frame, rows):
     print('There are {} of records in the data frame.'.format(len(data_frame)))
 
 
+def get_jfk_planes(data_frame,
+                   filter,
+                   from_to,
+                   which_delay,
+                   delay_value,
+                   planes_dict,
+                   type_of_planes
+                   ):
+    # which columns we need
+    data_frame = data_frame.filter(filter)
+    # filter out cancelled flights
+    data_frame = data_frame.dropna()
+    # either flights TO or FROM JFK
+    data_frame = data_frame[data_frame[from_to] == 'JFK']
+    # let us consider only arrival / departure delays of more than delay_value (e.g. 60) minutes
+    data_frame = data_frame[data_frame[which_delay] > delay_value]
+    # add a column in data frame with planes'models
+    data_frame.insert(len(data_frame.columns), 'model',
+                             [planes_dict.get(tailnumber) for tailnumber in data_frame['TailNum']])
+    # and now type of flights, i.e. either small or large ones
+    data_frame = data_frame[data_frame['model'].isin(type_of_planes)]
+    data_frame = data_frame.reset_index(drop=True)
+    return data_frame
+
+
+def display_cascade(year, cause, effect):
+    def get_string(plane, action_verb):
+        arr_time_string = '{}{}{}{}'.format(year,                           # year
+                                            str(plane[0]).rjust(2, '0'),    # month
+                                            plane[1],
+                                            plane[2])
+        arr_time = datetime.strptime(arr_time_string, '%Y%m%d%H%M')
+        date = arr_time.strftime('%d/%m/%Y')
+        arr_time_str = arr_time.strftime('%H:%M')
+        action_verb_past = action_verb.strip('e')
+        ret_str = f'Plane with tail number {plane[5]} was supposed to {action_verb} ' \
+                  f'on {date} at {plane[3]}, but it was {plane[4]} minutes late, ' \
+                  f'so it {action_verb_past}ed at {arr_time_str}'
+        return ret_str
+
+    print(get_string(cause, 'arrive'))
+    print(get_string(effect, 'depart'))
+    print()
+
+
 def question_4():
     # get planes data
     planes_data_frame = get_data_frame_from_pickle('pickles/pickle_plane-data.pkl')
@@ -294,8 +339,9 @@ def question_4():
                     ]
 
     # consider year 2007
+    year = 2007
     # get data from pickle
-    data_frame = get_data_frame_from_pickle('pickles/pickle_2007.pkl')
+    data_frame = get_data_frame_from_pickle('pickles/pickle_{}.pkl'.format(year))
     # as smaller flights (sometimes) wait for larger flights:
     # firstly, we need large flights to JFK
     filter_to = [
@@ -303,47 +349,149 @@ def question_4():
         "DayofMonth",
         "TailNum",
         "ArrTime",
+        "CRSArrTime",
         "ArrDelay",
         "Dest"
     ]
-    data_frame_to_jfk = data_frame.filter(filter_to)
-    data_frame_to_jfk = data_frame_to_jfk[data_frame_to_jfk['Dest'] == 'JFK']
-    # let us consider only arrival delays of more than 60 minutes
-    data_frame_to_jfk = data_frame_to_jfk[data_frame_to_jfk['ArrDelay'] > 60]
-    # add a column in data frame with planes'models
-    data_frame_to_jfk.insert(len(data_frame_to_jfk.columns), 'model',
-                      [planes_dict.get(tailnumber) for tailnumber in data_frame_to_jfk['TailNum']])
-    # and now large flights, i.e. with max no of passengers at least 200
-    data_frame_to_jfk = data_frame_to_jfk[data_frame_to_jfk['model'].isin(large_planes)]
-    show(data_frame_to_jfk, 4)
 
-    # secondly, we need smaller flights from JFK
+    data_frame_to_jfk = get_jfk_planes(data_frame=data_frame,
+                                       filter=filter_to,
+                                       from_to='Dest',
+                                       which_delay='ArrDelay',
+                                       delay_value=60,
+                                       planes_dict=planes_dict,
+                                       type_of_planes=large_planes
+                                       )
+     # secondly, we need smaller flights from JFK
     filter_from = [
         "Month",
         "DayofMonth",
         "TailNum",
         "DepTime",
+        "CRSDepTime",
         "ArrDelay",
         "DepDelay",
         "Origin"
     ]
-    data_frame_from_jfk = data_frame.filter(filter_from)
-    data_frame_from_jfk = data_frame_from_jfk[data_frame_from_jfk['Origin'] == 'JFK']
-    # let us consider only departure delays of more than 30 minutes
-    data_frame_from_jfk = data_frame_from_jfk[data_frame_from_jfk['DepDelay'] > 30]
-    # add a column in data frame with planes'models
-    data_frame_from_jfk.insert(len(data_frame_from_jfk.columns), 'model',
-                             [planes_dict.get(tailnumber) for tailnumber in data_frame_from_jfk['TailNum']])
-    # and now small flights, i.e. with max no of passengers at most 100
-    data_frame_from_jfk = data_frame_from_jfk[data_frame_from_jfk['model'].isin(small_planes)]
+    data_frame_from_jfk = get_jfk_planes(data_frame=data_frame,
+                                         filter=filter_from,
+                                         from_to='Origin',
+                                         which_delay='DepDelay',
+                                         delay_value=60,
+                                         planes_dict=planes_dict,
+                                         type_of_planes=small_planes
+                                       )
+    show(data_frame_to_jfk, 4)
     show(data_frame_from_jfk, 4)
+    possible_cascades = dict()
+    # key - large plane late to JFK
+    # value - list of small planes late from JFK, whose delays could be caused by the large plane
+    connection_time = timedelta(minutes=30)
+    for index, row in data_frame_to_jfk.iterrows():
+        # let us gather data about the large plane (key in the dict):
+        plane_late_to_jfk = (row['Month'],
+                             row['DayofMonth'],
+                             int(row['ArrTime']),
+                             row['CRSArrTime'],
+                             int(row['ArrDelay']),
+                             row['TailNum']
+                             )
+        # change arrival times (both real and CRS) into datetime objects to include connection time:
+        arr_time_datetime = datetime.strptime(str(int(row['ArrTime'])), '%H%M')
+        crs_arr_time_datetime = datetime.strptime(str(int(row['CRSArrTime'])), '%H%M')
+        # add connection time
+        arr_time_datetime_with_connection = arr_time_datetime + connection_time
+        crs_arr_time_datetime_with_connection = crs_arr_time_datetime + connection_time
+        # change back to integers
+        arr_time_with_connection = int(arr_time_datetime_with_connection.strftime('%H%M'))
+        crs_arr_time_with_connection = int(crs_arr_time_datetime_with_connection.strftime('%H%M'))
+        #
+        # now from dataframe of planes late from JFK we have to choose those that can be late because of the plane above
+        cascade_planes_df = data_frame_from_jfk[
+            # same month
+            (data_frame_from_jfk['Month'] == row['Month']) &
+            # same day
+            (data_frame_from_jfk['DayofMonth'] == row['DayofMonth']) &
+            # small plane departs after large plane's arrival
+            (data_frame_from_jfk['DepTime'] > arr_time_with_connection) &
+            # same for planned times
+            (data_frame_from_jfk['CRSDepTime'] > crs_arr_time_with_connection) &
+            # planned departure time of small plane was before real arrival time of large
+            (data_frame_from_jfk['CRSDepTime'] < row['ArrTime'])
+            ]
+        if len(cascade_planes_df) > 0:
+            possible_cascades[plane_late_to_jfk] = list()
+            for index2, row2 in cascade_planes_df.iterrows():
+                # append consecutive small planes to the list
+                possible_cascades[plane_late_to_jfk].append((row2['Month'],
+                                                             row2['DayofMonth'],
+                                                             int(row2['DepTime']),
+                                                             row2['CRSDepTime'],
+                                                             int(row2['DepDelay']),
+                                                             row2['TailNum'],
+                                                             int(row2['ArrDelay'])
+                                                             ))
+    # sort large planes by date of flight
+    planes_to_jfk = list(possible_cascades.keys())
+    planes_to_jfk.sort(key=lambda x: x[1])  # sort by day of month
+    planes_to_jfk.sort(key=lambda x: x[0])  # sort by month
+    # print out results
+    counter = 0
+    for large_plane in planes_to_jfk:
+        for small_plane in possible_cascades[large_plane]:
+            counter += 1
+            print(counter)
+            display_cascade(year, large_plane, small_plane)
+
+
+def question_2():
+    planes_data_frame = get_data_frame_from_pickle('pickle_plane-data.pkl')
+    # we need only tail number and issue date
+    planes_data_frame = planes_data_frame.filter(['tailnum', 'issue_date', 'year'])
+    planes_data_frame = planes_data_frame.dropna()
+
+    # TODO: filter out planes issued before they were produced
+
+    # make a dictionary {tailnumber: issue_date}
+    issue_dates_of_planes = dict()
+    for index, row in planes_data_frame.iterrows():
+        issue_dates_of_planes[row[0]] = datetime.strptime(row[1], '%m/%d/%Y')
+    # consider year 2007
+    year = 2007
+    # get data from pickle
+    data_frame = get_data_frame_from_pickle('pickles/pickle_{}.pkl'.format(year))
+    filter = [
+        "Year",
+        "Month",
+        "DayofMonth",   # to establish the age of a plane
+        "TailNum",      # to find 'issue date' of a plane, and hence the age
+        "DepDelay"
+    ]
+    data_frame = data_frame.filter(filter)
+    data_frame = data_frame.dropna()
+
+    # now we want to make up a list of tuples (age_of_plane, delay)
+    output_data = list()
+    for index, row in data_frame.iterrows():
+        # establish date of flight as datetime object
+        # firstly as a string:
+        date_str = f'{row[0]}/{row[1]}/{row[2]}'
+        date_of_flight = datetime.strptime(date_str, '%Y/%m/%d')
+        issue_date = issue_dates_of_planes[row[3]]
+        age_of_plane = date_of_flight - issue_date
+
+        # TODO: change age_of_plane to integer days
+        # TODO: add a tuple (age_of_plane, delay) to output_data
+        # TODO: find Monte Carlo graph
+        # TODO: google a way to evaluate correlation coefficient
 
 
 def main():
     t0 = datetime.now()
     # run_only_once_convert_csv_to_pickles()
     # question_1()
-    question_4()
+    # question_4()
+    question_2()
     t1 = datetime.now()
     print(t1 - t0)
 
