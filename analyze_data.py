@@ -1,14 +1,14 @@
 import pandas as pd
 import os
+import csv
 import math
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import numpy as np
 
-
 # global variables
 # years = [year for year in range(1987, 2009)]
-years = [year for year in range(1987, 1991)]
+years = [year for year in range(2003, 2008)]
 months = {1: 'January',
           2: 'February',
           3: 'March',
@@ -113,6 +113,96 @@ def get_data_frame_from_pickle(pickle_name, print_info=False):
     return pd.read_pickle(pickle_name)
 
 
+def exponent(x):
+    if x == 0:
+        return 0
+    return math.floor(math.log10(abs(x)))
+
+
+def round_to_sf(x, sig):
+    return round(x, sig-int(math.floor(math.log10(abs(x))))-1)
+
+
+def show(data_frame, rows):
+    print(data_frame.head(rows))
+    print(data_frame.tail(rows))
+    print('There are {} of records in the data frame.'.format(len(data_frame)))
+
+
+def get_rounded_endpoints_and_unit(min_value, max_value):
+    """
+    Returns:
+        min, max, step for a graph
+    """
+    max_exp = max(exponent(min_value), exponent(max_value))
+    min_ret = max_ret = 0
+    if min_value:
+        min_ret = round(min_value / 10 ** max_exp - 0.5) * 10 ** max_exp
+    if max_value:
+        max_ret = round(max_value / 10 ** max_exp + 0.5) * 10 ** max_exp
+    step = 10 ** max_exp
+    the_range = max_ret - min_ret
+    many = the_range // step
+    if many > 10:
+        many = math.ceil(many / 10)
+        step = step * many
+    return min_ret, max_ret, step
+
+
+def create_scatter_graph_with_regression(data_frame,
+                                         df_x_column,
+                                         df_y_column,
+                                         file_name,
+                                         x_label,
+                                         y_label,
+                                         title,
+                                         x_min=None,
+                                         x_max=None,
+                                         x_step=None,
+                                         y_min=None,
+                                         y_max=None,
+                                         y_step=None):
+    # points
+    # x_coordinates = [map(float, x_coordinates)]
+    x_coordinates = data_frame[df_x_column].astype(str).astype(float)  # .to_numpy()
+    y_coordinates = data_frame[df_y_column].astype(str).astype(float)  # .to_numpy()
+    print(x_coordinates, type(x_coordinates))
+    print(y_coordinates, type(y_coordinates))
+
+    # boundaries
+    if x_min is None or x_max is None or x_step is None:
+        low, high, step = get_rounded_endpoints_and_unit(min(x_coordinates), max(x_coordinates))
+        x_min = x_min or low
+        x_max = x_max or high
+        x_step = x_step or step
+    if y_min is None or y_max is None or y_step is None:
+        low, high, step = get_rounded_endpoints_and_unit(min(y_coordinates), max(y_coordinates))
+        y_min = y_min or low
+        y_max = y_max or high
+        y_step = y_step or step
+
+    print('x:', x_min, x_max, x_step)
+    print('y:', y_min, y_max, y_step)
+
+    # plots
+    fig, ax = plt.subplots()
+    ax.scatter(x_coordinates, y_coordinates, s=1, c='blue', vmin=0, vmax=100)
+    ax.set(xlim=(x_min, x_max), xticks=np.arange(x_min, x_max, x_step),
+           ylim=(y_min, y_max), yticks=np.arange(y_min, y_max, y_step))
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.title(title)
+
+    # line of regression
+    print('rcoef: {}'.format(np.corrcoef(x_coordinates, y_coordinates)[1][0]))
+    a, b = np.polyfit(x_coordinates, y_coordinates, 1)
+    print('y = {} x + {}'.format(a, b))
+    plt.plot(x_coordinates, a * x_coordinates + b, c='red')
+    plt.savefig(file_name)
+    plt.show()
+
+
+# methods for question 1
 def get_frequencies(data_frame, column_name, thresholds=None):
     frequencies_list = list()
     number_of_intervals = len(thresholds) - 1
@@ -223,6 +313,39 @@ def get_excel_with_frequencies_for_all_years(my_filter, column_name_for_periods,
         summary_statistics.to_excel(writer, sheet_name='stats')
 
 
+def get_histograms_for_all_years(my_filter, thresholds, histogram_name_part):
+    if thresholds is None:
+        thresholds = 500
+    print('>>> generating histograms for ' + histogram_name_part.replace('_', ' '))
+    for idx, year in enumerate(years):
+        print('Analyzing data from year {}. Year {} out of {}.'.format(year, idx + 1, len(years)))
+
+        # get data from pickle
+        data_frame = get_data_frame_from_pickle('pickles/pickle_{}.pkl'.format(year))
+
+        # filter out cancelled flights
+        data_frame = data_frame[data_frame['Cancelled'] == 0]
+
+        # filter only the columns that we may need
+        data_frame = data_frame.filter(my_filter)
+
+        for day in range(1, 8):
+            current_day_data_frame = data_frame[data_frame['DayOfWeek'] == day]
+
+            histogram_data = list(current_day_data_frame['ArrDelay'])
+
+            # Creating histogram
+            fig, ax = plt.subplots(figsize=(10, 7))
+            ax.set(xlim=(-200, 200), xticks=np.arange(-200, 200, 50))
+            ax.hist(histogram_data, bins=thresholds)
+            plt.xlabel("arrival delay")
+            plt.ylabel("frequency")
+            plt.title('Arrival delays per day of week {}, {}'.format(year, days_of_week[day]))
+            plt.savefig('images/histogram_{}_{}_{}.png'.format(histogram_name_part, year, day))
+            # Show plot
+            # plt.show()
+
+
 def question_1():
     # Question 1. When is the best time to fly to minimise delays?
     # 1.1 time of day
@@ -240,6 +363,9 @@ def question_1():
         "DayOfWeek",
         "ArrDelay"
     ]
+    get_histograms_for_all_years(my_filter=filter_1_2,
+                                 thresholds=None,  # [-1300, -90, -15, 15, 60, 120, 180, 300, 600, 1200, 1500],
+                                 histogram_name_part='time_of_day')
     get_excel_with_frequencies_for_all_years(my_filter=filter_1_2,
                                              column_name_for_periods='DayOfWeek',
                                              thresholds=[-1300, -90, -15, 15, 60, 120, 180, 300, 600, 1200, 1500],
@@ -257,10 +383,254 @@ def question_1():
                                              excel_name='frequencies_for_months')
 
 
-def show(data_frame, rows):
-    print(data_frame.head(rows))
-    print(data_frame.tail(rows))
-    print('There are {} of records in the data frame.'.format(len(data_frame)))
+# methods for question 2
+def checking_issue_date_vs_year_snippet():
+    planes_data_frame = get_data_frame_from_pickle('pickles/pickle_plane-data.pkl')
+    # we need only tail number and issue date
+    planes_data_frame = planes_data_frame.filter(['tailnum', 'issue_date', 'year'])
+    planes_data_frame = planes_data_frame.dropna()
+    planes_data_frame = planes_data_frame[
+        (planes_data_frame['tailnum'] != 'None') &
+        (planes_data_frame['issue_date'] != 'None') &
+        (planes_data_frame['year'] != 'None')
+        ]
+
+    # a dictionary {tailnumber: issue_date}, where issue_date is datetime object
+    issue_dates_of_planes = dict()
+    # a dict with keys: 'earlier', 'same', 'later' which compares issue_date to year
+    frequency_dict = dict()
+    for index, row in planes_data_frame.iterrows():
+        issue_date = datetime.strptime(row[1], '%m/%d/%Y')
+        issue_dates_of_planes[row[0]] = issue_date
+        if issue_date.year < int(row[2]):
+            frequency_dict['earlier'] = frequency_dict.get('earlier', 0) + 1
+        elif issue_date.year == int(row[2]):
+            frequency_dict['same'] = frequency_dict.get('same', 0) + 1
+        elif issue_date.year > int(row[2]):
+            frequency_dict['later'] = frequency_dict.get('later', 0) + 1
+    for k, v in frequency_dict.items():
+        print(k.ljust(8) + ': ' + str(v))
+
+
+def get_pickle_for_question_2(year):
+    planes_data_frame = get_data_frame_from_pickle('pickles/pickle_plane-data.pkl')
+    # we need only tail number and issue date
+    planes_data_frame = planes_data_frame.filter(['tailnum', 'issue_date', 'year'])
+    planes_data_frame = planes_data_frame.dropna()
+    planes_data_frame = planes_data_frame[
+        (planes_data_frame['tailnum'] != 'None') &
+        (planes_data_frame['issue_date'] != 'None')
+        ]
+
+    # a dictionary {tailnumber: issue_date}, where issue_date is datetime object
+    issue_dates_of_planes = dict()
+    for index, row in planes_data_frame.iterrows():
+        issue_date = datetime.strptime(row[1], '%m/%d/%Y')
+        # filter out planes issued before they were produced ;)
+        if row[2].isdigit() and issue_date.year < int(row[2]):
+            continue
+        issue_dates_of_planes[row[0]] = issue_date
+
+    # get data from pickle
+    data_frame = get_data_frame_from_pickle('pickles/pickle_{}.pkl'.format(year))
+    my_filter = [
+        "Year",
+        "Month",
+        "DayofMonth",  # to establish the age of a plane
+        "TailNum",  # to find 'issue date' of a plane, and hence the age
+        "DepDelay"
+    ]
+    data_frame = data_frame.filter(my_filter)
+    data_frame = data_frame.dropna()
+
+    # now we want to make up a list of tuples (age_of_plane [in days], delay [in minutes])
+    output_data = list()
+    # this was used only to check if there are planes with issue date after travel date
+    # planes_travelling_before_their_issue = dict()
+    for index, row in data_frame.iterrows():
+        # establish date of flight as datetime object
+        # firstly as a string:
+        date_str = f'{row[0]}/{row[1]}/{row[2]}'  # YYYY/MM/DD
+        date_of_flight = datetime.strptime(date_str, '%Y/%m/%d')
+        if row[3] not in issue_dates_of_planes:
+            continue
+        issue_date = issue_dates_of_planes[row[3]]
+        age_of_plane = date_of_flight - issue_date
+        if age_of_plane.total_seconds() < 0:
+            continue
+            # planes_travelling_before_their_issue[row[3]] = age_of_plane.total_seconds()
+        output_data.append((age_of_plane.days, row[4]))
+
+    x_coordinates = np.array([p[0] for p in output_data])
+    y_coordinates = np.array([p[1] for p in output_data])
+    delay_vs_age_df = pd.DataFrame({'age': x_coordinates, 'delay': y_coordinates})
+    delay_vs_age_df.to_pickle('pickles/delay_vs_age_{}.pkl'.format(year))
+
+
+def create_scatter_graph_for_question_2(data_frame, year):
+    x_coordinates = data_frame['age'].to_numpy()
+    y_coordinates = data_frame['delay'].to_numpy()
+
+    # plots
+    fig, ax = plt.subplots()
+    ax.scatter(x_coordinates, y_coordinates, s=1, c='blue', vmin=0, vmax=100)
+    # x_min, x_max = min(x_coordinates), max(x_coordinates)
+    # y_min, y_max = min(y_coordinates), max(y_coordinates)
+    # print(x_min, x_max)
+    # print(y_min, y_max)
+    ax.set(xlim=(0, 12000), xticks=np.arange(0, 12000, 2000),
+           ylim=(-200, 2650), yticks=np.arange(-200, 2650, 200))
+    plt.xlabel("age of plane in days")
+    plt.ylabel("arrival delay in minutes")
+    plt.title('age of plane and arrival delays in  {}'.format(year))
+    plt.savefig('images/age_vs_delay.png')
+    plt.show()
+
+    r_coefficient = np.corrcoef(x_coordinates, y_coordinates)
+    print('r-coefficient:', r_coefficient[0][1])
+
+
+def question_2():
+    year = 2007
+    get_pickle_for_question_2(year)
+    delay_vs_age_df = get_data_frame_from_pickle('pickles/delay_vs_age_{}.pkl'.format(year))
+    print(delay_vs_age_df.head(7))
+    create_scatter_graph_for_question_2(delay_vs_age_df, year)
+
+
+# methods for question 3
+def get_flights_data_for_question_3(year, origin_airports, dest_airports):
+    # get data from pickle
+    data_frame = get_data_frame_from_pickle('pickles/pickle_{}.pkl'.format(year))
+    my_filter = [
+        "TailNum",
+        "Cancelled",
+        "Origin",
+        "Dest"
+    ]
+    data_frame = data_frame.filter(my_filter)
+    data_frame = data_frame[data_frame['Cancelled'] == 0]
+    data_frame = data_frame.drop('Cancelled', axis=1)
+    data_frame = data_frame.dropna(subset=['Origin', 'Dest'])
+    data_frame = data_frame[
+        # (data_frame['TailNum'] != 'None') &
+        (data_frame['Origin'] != 'None') &
+        (data_frame['Dest'] != 'None') &
+        (data_frame['Origin'].isin(origin_airports)) &
+        (data_frame['Dest'].isin(dest_airports))
+        ]
+    # we do not filter out TailNum == None as it turns out that before 1995 tail numbers were not collected
+
+    # todo return number of flights and (for year >= 1995) list of tail numbers
+    return len(data_frame), list(data_frame.dropna(subset=['TailNum'])['TailNum']) if year >= 1995 else []
+
+
+def get_origin_and_dest_airports_from_states(origin_states, dest_states):
+    # non_us_airports = ['ROP', 'ROR', 'SPN', 'YAP']
+    airports_df = get_data_frame_from_pickle('pickles/pickle_airports.pkl')
+    airports_df = airports_df.filter(['iata', 'state'])
+    origin_airports_df = airports_df[airports_df['state'].isin(origin_states)]
+    dest_airports_df = airports_df[airports_df['state'].isin(dest_states)]
+    origin_airports = list(origin_airports_df['iata'])
+    dest_airports = list(dest_airports_df['iata'])
+    return origin_airports, dest_airports
+
+
+def get_model_capacity_dict():
+    # todo get the model_capacity_dict from df / csv
+    model_capacity_dict = {
+        "EMB-145XR": 37,
+        "A320-214": 144,
+        "737-3TO": 168,
+        "747-422": 660,
+        "EMB-145LR": 37,
+        "747-451": 376,
+        "737-824": 162,
+        "EMB-135LR": 37,
+        "737-524": 147,
+        "767-332": 221,
+        "757-224": 200,
+        "737-76N": 130,
+        "EMB-145EP": 37,
+        "DC-9-31": 80,
+        "737-724": 85,
+        "EMB-135ER": 37,
+        "767-3P6": 269,
+        "737-3G7": 126,
+        "CL-600-2B19": 50,
+        "A321-211": 200,
+        "737-33A": 144
+    }
+    return model_capacity_dict
+
+
+def get_planes_capacity_dict():
+    model_capacity_dict = get_model_capacity_dict()
+    plane_capacity_dict = dict()
+    # get planes data
+    planes_data_frame = get_data_frame_from_pickle('pickles/pickle_plane-data.pkl')
+    # only tail number and model are in our concern
+    planes_data_frame = planes_data_frame.filter(['tailnum', 'model'])
+    # filter out when model is not given
+    planes_data_frame = planes_data_frame.dropna()
+    planes_data_frame = planes_data_frame.set_index('tailnum')
+    tailnum_model_dict = planes_data_frame.T.to_dict('index')['model']
+
+    models_with_missing_capacities = set()
+    for tail_number, model in tailnum_model_dict.items():
+        capacity = model_capacity_dict.get(model, 0)
+        if capacity == 0:
+            models_with_missing_capacities.add(model)
+            print('capacity for model "{}" not found in the dict'.format(model))
+        plane_capacity_dict[tail_number] = capacity
+
+    return plane_capacity_dict
+
+
+def get_question_3_dataframe(planes_capacity_dict, origin_airports, dest_airports):
+    q3_data_frame = pd.DataFrame(columns=['year',
+                                          'number_of_flights',
+                                          'number_of_passengers',
+                                          'number_of_flights_without_a_record'])
+    for year in years:
+        number_of_flights, tail_numbers = get_flights_data_for_question_3(year,
+                                                                          origin_airports,
+                                                                          dest_airports)
+        number_of_passengers = sum(planes_capacity_dict.get(tail_number, 0) for tail_number in tail_numbers)
+        number_of_flights_without_a_record = len([tail_number for tail_number in tail_numbers
+                                                  if tail_number not in planes_capacity_dict])
+        yearly_tuple = (year, number_of_flights, number_of_passengers, number_of_flights_without_a_record)
+        q3_data_frame = q3_data_frame.append(pd.Series(yearly_tuple, index=q3_data_frame.columns), ignore_index=True)
+        with open('excel_files/question_3_data.csv', 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(yearly_tuple)
+        print(yearly_tuple)
+    return q3_data_frame
+
+
+
+def question_3():
+    west_coast_states = ['WA', 'OR', 'CA']
+    east_coast_states = ['ME', 'NH', 'MA', 'RI', 'CT', 'NJ', 'DE', 'MD', 'VA', 'NC', 'SC', 'GA', 'FL']
+    west_coast_airports, east_coast_airports = get_origin_and_dest_airports_from_states(west_coast_states,
+                                                                                        east_coast_states)
+    # todo: should this be moved inside get_question_3_dataframe?
+    planes_capacity_dict = get_planes_capacity_dict()
+
+    # q3_data_frame will have the following columns:
+    # year, number_of_flights, number_of_passengers or 0 / None, number_of_flights_without_a_record
+    q3_data_frame = get_question_3_dataframe(planes_capacity_dict, west_coast_airports, east_coast_airports)
+    # correlation year, no of flights
+    create_scatter_graph_with_regression(data_frame=q3_data_frame,
+                                         df_x_column='year',
+                                         df_y_column='number_of_flights',
+                                         file_name='images/flights_vs_year_scatter_plot.png',
+                                         x_label='years',
+                                         y_label='number of flights',
+                                         title=''
+                                         )
+    # correlation year, no of passengers for year >= 1995
+    # add to graphs info about percentage of flights where the number of passengers cannot be investigated
 
 
 def get_jfk_planes(data_frame,
@@ -444,201 +814,51 @@ def question_4():
             display_cascade(year, large_plane, small_plane)
 
 
-def checking_issue_date_vs_year_snippet():
-    planes_data_frame = get_data_frame_from_pickle('pickles/pickle_plane-data.pkl')
-    # we need only tail number and issue date
-    planes_data_frame = planes_data_frame.filter(['tailnum', 'issue_date', 'year'])
-    planes_data_frame = planes_data_frame.dropna()
-    planes_data_frame = planes_data_frame[
-        (planes_data_frame['tailnum'] != 'None') &
-        (planes_data_frame['issue_date'] != 'None') &
-        (planes_data_frame['year'] != 'None')
-        ]
+def get_flights_data_for_question_5(year, reason_for_delay):
+    """
+    Args:
+        year: between 1987 and 2007 incl.
+        reason_for_delay: one of 5 reasons given in yearly data
 
-    # a dictionary {tailnumber: issue_date}, where issue_date is datetime object
-    issue_dates_of_planes = dict()
-    # a dict with keys: 'earlier', 'same', 'later' which compares issue_date to year
-    frequency_dict = dict()
-    for index, row in planes_data_frame.iterrows():
-        issue_date = datetime.strptime(row[1], '%m/%d/%Y')
-        issue_dates_of_planes[row[0]] = issue_date
-        if issue_date.year < int(row[2]):
-            frequency_dict['earlier'] = frequency_dict.get('earlier', 0) + 1
-        elif issue_date.year == int(row[2]):
-            frequency_dict['same'] = frequency_dict.get('same', 0) + 1
-        elif issue_date.year > int(row[2]):
-            frequency_dict['later'] = frequency_dict.get('later', 0) + 1
-    for k, v in frequency_dict.items():
-        print(k.ljust(8) + ': ' + str(v))
-
-
-def get_pickle_for_question_2():
-    planes_data_frame = get_data_frame_from_pickle('pickles/pickle_plane-data.pkl')
-    # we need only tail number and issue date
-    planes_data_frame = planes_data_frame.filter(['tailnum', 'issue_date', 'year'])
-    planes_data_frame = planes_data_frame.dropna()
-    planes_data_frame = planes_data_frame[
-        (planes_data_frame['tailnum'] != 'None') &
-        (planes_data_frame['issue_date'] != 'None')
-        ]
-
-    # a dictionary {tailnumber: issue_date}, where issue_date is datetime object
-    issue_dates_of_planes = dict()
-    for index, row in planes_data_frame.iterrows():
-        issue_date = datetime.strptime(row[1], '%m/%d/%Y')
-        # filter out planes issued before they were produced ;)
-        if row[2].isdigit() and issue_date.year < int(row[2]):
-            continue
-        issue_dates_of_planes[row[0]] = issue_date
-
-    # consider year 2007
-    year = 2007
+    Returns:
+        data frame with all that we need and a list of total arrival delays per month
+    """
     # get data from pickle
     data_frame = get_data_frame_from_pickle('pickles/pickle_{}.pkl'.format(year))
     my_filter = [
         "Year",
         "Month",
-        "DayofMonth",  # to establish the age of a plane
-        "TailNum",  # to find 'issue date' of a plane, and hence the age
-        "DepDelay"
+        # "DayofMonth",
+        'Cancelled',
+        "ArrDelay",
+        reason_for_delay
     ]
     data_frame = data_frame.filter(my_filter)
-    data_frame = data_frame.dropna()
-
-    # now we want to make up a list of tuples (age_of_plane [in days], delay [in minutes])
-    output_data = list()
-    # this was used only to check if there are planes with issue date after travel date
-    # planes_travelling_before_their_issue = dict()
-    for index, row in data_frame.iterrows():
-        # establish date of flight as datetime object
-        # firstly as a string:
-        date_str = f'{row[0]}/{row[1]}/{row[2]}'  # YYYY/MM/DD
-        date_of_flight = datetime.strptime(date_str, '%Y/%m/%d')
-        if row[3] not in issue_dates_of_planes:
-            continue
-        issue_date = issue_dates_of_planes[row[3]]
-        age_of_plane = date_of_flight - issue_date
-        if age_of_plane.total_seconds() < 0:
-            continue
-            # planes_travelling_before_their_issue[row[3]] = age_of_plane.total_seconds()
-        output_data.append((age_of_plane.days, row[4]))
-
-    x_coordinates = np.array([p[0] for p in output_data])
-    y_coordinates = np.array([p[1] for p in output_data])
-    delay_vs_age_df = pd.DataFrame({'age': x_coordinates, 'delay': y_coordinates})
-    delay_vs_age_df.to_pickle('pickles/delay_vs_age.pkl')
+    data_frame = data_frame.dropna(subset=[reason_for_delay])
+    data_frame = data_frame[data_frame['Cancelled'] == 0]
+    data_frame = data_frame[data_frame['ArrDelay'] > 0]
+    data_frame = data_frame[data_frame[reason_for_delay] > 0]
+    data_frame = data_frame.drop('Cancelled', axis=1)
+    data_frame = data_frame.reset_index(drop=True)
+    return data_frame
 
 
-def create_scatter_graph_for_question_2(data_frame):
-    x_coordinates = data_frame['age'].to_numpy()
-    y_coordinates = data_frame['delay'].to_numpy()
-
-    # plots
-    fig, ax = plt.subplots()
-    ax.scatter(x_coordinates, y_coordinates, s=1, c='blue', vmin=0, vmax=100)
-    x_min, x_max = min(x_coordinates), max(x_coordinates)
-    y_min, y_max = min(y_coordinates), max(y_coordinates)
-    # print(x_min, x_max)
-    # print(y_min, y_max)
-    ax.set(xlim=(x_min, 12000), xticks=np.arange(0, 12000, 2000),
-           ylim=(-200, 2650), yticks=np.arange(-200, 2650, 200))
-    plt.savefig('age_vs_delay.png')
-    plt.show()
-
-    r_coefficient = np.corrcoef(x_coordinates, y_coordinates)
-    print('r-coefficient:')
-    print(r_coefficient)
-
-
-def question_2():
-    # get_pickle_for_question_2()
-    delay_vs_age_df = get_data_frame_from_pickle('pickles/delay_vs_age.pkl')
-    create_scatter_graph_for_question_2(delay_vs_age_df)
-
-
-def get_pickle_for_question_3(year):
-    non_us_airports = ['ROP', 'ROR', 'SPN', 'YAP']
-    # get data from pickle
-    data_frame = get_data_frame_from_pickle('pickles/pickle_{}.pkl'.format(year))
-    my_filter = [
-        "TailNum",  # to find 'issue date' of a plane, and hence the age
-        "Origin",
-        "Dest"
-    ]
-    data_frame = data_frame.filter(my_filter)
-    data_frame = data_frame.dropna()
-    data_frame = data_frame[
-        (data_frame['TailNum'] != 'None') &
-        (data_frame['Origin'] != 'None') &
-        (data_frame['Dest'] != 'None') &
-        (data_frame['Origin'].isin(non_us_airports) == False) &
-        (data_frame['Dest'].isin(non_us_airports))
-        ]
-    print(len(data_frame))
-
-
-
-    # now we want to make up a list of tuples (age_of_plane [in days], delay [in minutes])
-    output_data = list()
-    # this was used only to check if there are planes with issue date after travel date
-    # planes_travelling_before_their_issue = dict()
-    for index, row in data_frame.iterrows():
-
-        output_data.append((age_of_plane.days, row[4]))
-
-    x_coordinates = np.array([p[0] for p in output_data])
-    y_coordinates = np.array([p[1] for p in output_data])
-    delay_vs_age_df = pd.DataFrame({'age': x_coordinates, 'delay': y_coordinates})
-    delay_vs_age_df.to_pickle('pickles/delay_vs_age.pkl')
-
-
-def question_3():
+def question_5():
     for year in years:
-        print(year, end=': ')
-        get_pickle_for_question_3(year)
-    quit()
-    # consider year 2007
-    year = 2007
-    # get data from pickle
-    data_frame = get_data_frame_from_pickle('pickles/pickle_{}.pkl'.format(year))
-    my_filter = [
-        "TailNum",  # to find 'issue date' of a plane, and hence the age
-        "Origin",
-        "Dest"
-    ]
-    data_frame = data_frame.filter(my_filter)
-    data_frame = data_frame.dropna()
-
-    # now we want to make up a list of tuples (age_of_plane [in days], delay [in minutes])
-    output_data = list()
-    # this was used only to check if there are planes with issue date after travel date
-    # planes_travelling_before_their_issue = dict()
-    for index, row in data_frame.iterrows():
-        # establish date of flight as datetime object
-        # firstly as a string:
-        date_str = f'{row[0]}/{row[1]}/{row[2]}'  # YYYY/MM/DD
-        date_of_flight = datetime.strptime(date_str, '%Y/%m/%d')
-        if row[3] not in issue_dates_of_planes:
-            continue
-        issue_date = issue_dates_of_planes[row[3]]
-        age_of_plane = date_of_flight - issue_date
-        if age_of_plane.total_seconds() < 0:
-            continue
-            # planes_travelling_before_their_issue[row[3]] = age_of_plane.total_seconds()
-        output_data.append((age_of_plane.days, row[4]))
-
-    x_coordinates = np.array([p[0] for p in output_data])
-    y_coordinates = np.array([p[1] for p in output_data])
-    delay_vs_age_df = pd.DataFrame({'age': x_coordinates, 'delay': y_coordinates})
-    delay_vs_age_df.to_pickle('pickles/delay_vs_age.pkl')
+        for reason_for_delay in ['CarrierDelay', 'WeatherDelay' 'NASDelay' 'SecurityDelay' 'LateAircraftDelay']:
+            data_frame = get_flights_data_for_question_5(year, reason_for_delay)
+            print(data_frame.head(6))
+            quit()
 
 
 def main():
     t0 = datetime.now()
     # run_only_once_convert_csv_to_pickles()
     # question_1()
-    # question_4()
+    # question_2()
     question_3()
+    # question_4()
+    # question_5()
     t1 = datetime.now()
     print(t1 - t0)
 

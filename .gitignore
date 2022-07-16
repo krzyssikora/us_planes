@@ -78,3 +78,24 @@ questions.md
 delay_vs_age.py
 
 locations.py
+.Rproj.user
+
+.google-cookie
+
+.RData
+
+.RDataTmp
+
+.Rhistory
+
+coursework.Rproj
+
+excel_files/question_3_data.csv
+
+*.png
+
+models_capacities.csv
+
+pickles/delay_vs_age.pkl
+
+planes_models.txt
