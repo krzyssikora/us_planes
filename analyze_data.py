@@ -134,8 +134,10 @@ def get_rounded_endpoints_and_unit(min_value, max_value):
     Returns:
         min, max, step for a graph
     """
-    max_exp = max(exponent(min_value), exponent(max_value))
+    # max_exp = max(exponent(min_value), exponent(max_value))
     min_ret = max_ret = 0
+    initial_range = max_value - min_value
+    max_exp = exponent(initial_range)
     if min_value:
         min_ret = round(min_value / 10 ** max_exp - 0.5) * 10 ** max_exp
     if max_value:
@@ -187,8 +189,8 @@ def create_scatter_graph_with_regression(data_frame,
     # plots
     fig, ax = plt.subplots()
     ax.scatter(x_coordinates, y_coordinates, s=1, c='blue', vmin=0, vmax=100)
-    ax.set(xlim=(x_min, x_max), xticks=np.arange(x_min, x_max, x_step),
-           ylim=(y_min, y_max), yticks=np.arange(y_min, y_max, y_step))
+    ax.set(xlim=(x_min, x_max), xticks=np.arange(x_min, x_max + x_step / 100, x_step),
+           ylim=(y_min, y_max), yticks=np.arange(y_min, y_max + y_step / 100, y_step))
     plt.xlabel(x_label)
     plt.ylabel(y_label)
     plt.title(title)
@@ -581,8 +583,9 @@ def get_planes_capacity_dict():
         capacity = model_capacity_dict.get(model, 0)
         if capacity == 0:
             models_with_missing_capacities.add(model)
-            print('capacity for model "{}" not found in the dict'.format(model))
         plane_capacity_dict[tail_number] = capacity
+    print('Capacities for the following models were not found in the dict: {}'
+          .format(', '.join(models_with_missing_capacities)))
 
     return plane_capacity_dict
 
