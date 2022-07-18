@@ -4,11 +4,12 @@ import csv
 import math
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
+from matplotlib import dates as mdates
 import numpy as np
 
 # global variables
-# years = [year for year in range(1987, 2009)]
-years = [year for year in range(2003, 2008)]
+years = [year for year in range(1987, 2009)]
+# years = [year for year in range(2003, 2006)]
 months = {1: 'January',
           2: 'February',
           3: 'March',
@@ -168,8 +169,6 @@ def create_scatter_graph_with_regression(data_frame,
     # x_coordinates = [map(float, x_coordinates)]
     x_coordinates = data_frame[df_x_column].astype(str).astype(float)  # .to_numpy()
     y_coordinates = data_frame[df_y_column].astype(str).astype(float)  # .to_numpy()
-    print(x_coordinates, type(x_coordinates))
-    print(y_coordinates, type(y_coordinates))
 
     # boundaries
     if x_min is None or x_max is None or x_step is None:
@@ -182,9 +181,6 @@ def create_scatter_graph_with_regression(data_frame,
         y_min = y_min or low
         y_max = y_max or high
         y_step = y_step or step
-
-    print('x:', x_min, x_max, x_step)
-    print('y:', y_min, y_max, y_step)
 
     # plots
     fig, ax = plt.subplots()
@@ -595,7 +591,8 @@ def get_question_3_dataframe(planes_capacity_dict, origin_airports, dest_airport
                                           'number_of_flights',
                                           'number_of_passengers',
                                           'number_of_flights_without_a_record'])
-    for year in years:
+    for year in years[1:-1]:
+        # throw out 1987 and 2007 as we don't have data from full years, so we cannot compare them with other years
         number_of_flights, tail_numbers = get_flights_data_for_question_3(year,
                                                                           origin_airports,
                                                                           dest_airports)
@@ -611,7 +608,6 @@ def get_question_3_dataframe(planes_capacity_dict, origin_airports, dest_airport
     return q3_data_frame
 
 
-
 def question_3():
     west_coast_states = ['WA', 'OR', 'CA']
     east_coast_states = ['ME', 'NH', 'MA', 'RI', 'CT', 'NJ', 'DE', 'MD', 'VA', 'NC', 'SC', 'GA', 'FL']
@@ -623,7 +619,7 @@ def question_3():
     # q3_data_frame will have the following columns:
     # year, number_of_flights, number_of_passengers or 0 / None, number_of_flights_without_a_record
     q3_data_frame = get_question_3_dataframe(planes_capacity_dict, west_coast_airports, east_coast_airports)
-    # correlation year, no of flights
+    # correlation no of flights on year
     create_scatter_graph_with_regression(data_frame=q3_data_frame,
                                          df_x_column='year',
                                          df_y_column='number_of_flights',
@@ -632,8 +628,28 @@ def question_3():
                                          y_label='number of flights',
                                          title=''
                                          )
-    # correlation year, no of passengers for year >= 1995
-    # add to graphs info about percentage of flights where the number of passengers cannot be investigated
+    # correlation no of passengers for year >= 1995 on year
+    q3_data_frame_from_1995 = q3_data_frame[q3_data_frame['year'] >= 1995]
+    q3_data_frame_from_1995 = q3_data_frame_from_1995.dropna()
+    create_scatter_graph_with_regression(data_frame=q3_data_frame_from_1995,
+                                         df_x_column='year',
+                                         df_y_column='number_of_passengers',
+                                         file_name='images/passengers_vs_year_scatter_plot.png',
+                                         x_label='years',
+                                         y_label='number of passengers',
+                                         title=''
+                                         )
+    # (add to graphs) info about percentage of flights where the number of passengers cannot be investigated
+    mysterious_flights_df = q3_data_frame_from_1995.filter(['year',
+                                                            'number_of_flights',
+                                                            'number_of_flights_without_a_record'])
+    years_str = [str(year) for year in mysterious_flights_df['year']]
+    percentages_str = [str(no_record * 100 // flights) + '%' for no_record, flights in
+                       zip(mysterious_flights_df['number_of_flights_without_a_record'],
+                           mysterious_flights_df['number_of_flights'])]
+    print('percentage of flights with unknown data about planes\' capacity:')
+    print(' | '.join(x for x in years_str))
+    print(' | '.join(x.rjust(4) for x in percentages_str))
 
 
 def get_jfk_planes(data_frame,
@@ -692,23 +708,26 @@ def question_4():
     planes_dict = planes_data_frame.T.to_dict('index')['model']
 
     # define small planes as those with capacity below 100 passengers
-    small_planes = ['EMB-145XR',
-                    'EMB-145LR',
-                    'EMB-135LR',
-                    'EMB-145EP',
-                    'EMB-135ER',
-                    'CL-600-2B19',
-                    'DC-9-31',
-                    '737-724'
+    small_planes = ["A109E", "A-1B", "AS 355F1", "ATR 72-212", "ATR-72-212", "C90",
+                    "CL-600-2B19", "CL-600-2C10", "CL600-2D24", "DA 20-A1", "DC-7BF",
+                    "DHC-8-102", "DHC-8-202", "E-90", "EMB-120", "EMB-120ER", "EMB-135ER",
+                    "EMB-135KL", "EMB-135LR", "EMB-145", "EMB-145EP", "EMB-145EP",
+                    "EMB-145LR", "EMB-145XR", "ERJ 190-100 IGW", "EXEC 162F", "F85P-1",
+                    "FALCON XP", "FALCON-XP", "G-IV", "HST-550", "KITFOX IV", "M-5-235C",
+                    "OTTER DHC-3", "PA-28-180", "PA-31-350", "PA-32R-300", "PA-32RT-300",
+                    "S-50A", "S-76A", "SAAB 340B", "T210N", "T337G", "VANS AIRCRAFT RV6"
                     ]
 
     # define large planes as those with capacity of at least 200 passengers
-    large_planes = ['757-224',
-                    'A321-211',
-                    '767-332',
-                    '767-3P6',
-                    '747-451',
-                    '747-422'
+    large_planes = ["737-832", "737-924", "737-924ER", "737-990", "747-2B5F",
+                    "747-422", "747-451", "757-212", "757-222", "757-223",
+                    "757-224", "757-225", "757-231", "757-232", "757-23N",
+                    "757-251", "757-26D", "757-2B7", "757-2G7", "757-2Q8",
+                    "757-2S7", "757-324", "757-33N", "757-351", "767-201",
+                    "767-223", "767-224", "767-2B7", "767-322", "767-323",
+                    "767-324", "767-332", "767-33A", "767-3CB", "767-3G5",
+                    "767-3P6", "767-424ER", "767-432ER", "777-222", "777-224",
+                    "777-232", "777-232LR", "A321-211", "A330-223", "A330-323"
                     ]
 
     # consider year 2007
@@ -817,41 +836,181 @@ def question_4():
             display_cascade(year, large_plane, small_plane)
 
 
-def get_flights_data_for_question_5(year, reason_for_delay):
+def get_flights_dataframe_for_question_5(year):
     """
     Args:
         year: between 1987 and 2007 incl.
-        reason_for_delay: one of 5 reasons given in yearly data
-
     Returns:
         data frame with all that we need and a list of total arrival delays per month
     """
     # get data from pickle
     data_frame = get_data_frame_from_pickle('pickles/pickle_{}.pkl'.format(year))
+    reasons_for_delay = ['CarrierDelay', 'WeatherDelay', 'NASDelay', 'SecurityDelay', 'LateAircraftDelay']
     my_filter = [
-        "Year",
-        "Month",
-        # "DayofMonth",
-        'Cancelled',
-        "ArrDelay",
-        reason_for_delay
-    ]
+                    "Year",
+                    "Month",
+                    # "DayofMonth",
+                    'Cancelled',
+                    "ArrDelay"
+                ] + reasons_for_delay
     data_frame = data_frame.filter(my_filter)
-    data_frame = data_frame.dropna(subset=[reason_for_delay])
+    data_frame = data_frame.dropna(subset=reasons_for_delay, how='all')
     data_frame = data_frame[data_frame['Cancelled'] == 0]
     data_frame = data_frame[data_frame['ArrDelay'] > 0]
-    data_frame = data_frame[data_frame[reason_for_delay] > 0]
     data_frame = data_frame.drop('Cancelled', axis=1)
     data_frame = data_frame.reset_index(drop=True)
+
     return data_frame
 
 
-def question_5():
+def get_delays_reason_data_for_q5():
+    # we will collect tuples:
+    # (year, month, %CarrierDelay, %WeatherDelay, %NASDelay, %SecurityDelay, %LateAircraftDelay, %other)
+    reasons_for_delay = ['CarrierDelay', 'WeatherDelay', 'NASDelay', 'SecurityDelay', 'LateAircraftDelay']
+    reasons_data = list()
     for year in years:
-        for reason_for_delay in ['CarrierDelay', 'WeatherDelay' 'NASDelay' 'SecurityDelay' 'LateAircraftDelay']:
-            data_frame = get_flights_data_for_question_5(year, reason_for_delay)
-            print(data_frame.head(6))
-            quit()
+        data_frame = get_flights_dataframe_for_question_5(year)
+        for month in range(1, 13):
+            arr_delay_total = data_frame.loc[data_frame['Month'] == month, 'ArrDelay'].sum()
+            row = [year, month]
+            for reason_for_delay in reasons_for_delay:
+                data_frame_month = data_frame[data_frame['Month'] == month]
+                data_frame_month = data_frame_month[data_frame_month[reason_for_delay].notnull()]
+                row.append(data_frame_month[reason_for_delay].sum() * 100 // arr_delay_total
+                           if len(data_frame_month[reason_for_delay].unique()) else 0)
+            row.append(100 - sum(row[-5:]))
+            if row[-1] > 95:
+                continue
+            reasons_data.append(tuple(row))
+
+    return reasons_data
+
+
+def create_scatter_graph_for_question_5(reasons_list):
+    reasons_for_delay = ['Carrier', 'Weather', 'NAS', 'Security', 'Late Aircraft', 'Unknown']
+    reasons_data = [list() for _ in range(6)]
+    for idx, reason in enumerate(reasons_for_delay):
+        reasons_data[idx] = [reasons_list[idx + 2]]
+    # https://stackoverflow.com/questions/67582913/plotting-time-series-in-matplotlib-with-month-names-ex-january-and-showing-ye
+    # x: points and boundaries
+    x_coordinates = pd.Series([datetime(x[0], x[1], 1, 0, 0, 0, 0) for x in reasons_list])
+    x_min = datetime(min(x_coordinates).year, min(x_coordinates).month, 1, 0, 0, 0, 0)
+    x_max = datetime(max(x_coordinates).year, max(x_coordinates).month, 28, 0, 0, 0, 0)
+
+    # y: points and boundaries
+    y_coordinates_list = [pd.Series([x[idx] for x in reasons_list]) for idx in range(2, 8)]
+    y_min = 0
+    y_max = max(max(y_coordinates) + 2 for y_coordinates in y_coordinates_list)
+    y_step = 10
+    # Minor ticks every year.
+    fmt_year = mdates.YearLocator()
+
+    # plots
+    fig, ax = plt.subplots()
+    ax.set(xlim=(x_min, x_max),
+           ylim=(y_min, y_max), yticks=np.arange(y_min, y_max + y_step / 100, y_step))
+    ax.xaxis.set_major_locator(fmt_year)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+
+    # font size for labels
+    ax.tick_params(labelsize=10, which='both')
+
+    line = [None for _ in range(6)]
+    for idx, y_coordinates, c in zip(range(6), y_coordinates_list,
+                                     ['blue', 'red', 'orange', 'green', 'black', 'purple']):
+        line[idx], = ax.plot(x_coordinates, y_coordinates, c=c, linestyle='solid', label=reasons_for_delay[idx])
+    ax.legend(handles=line)
+    plt.xlabel('time')
+    plt.ylabel('percentage reason')
+    plt.title('changes in reasons for delays')
+
+    # todo: line of regression
+    # print('rcoef: {}'.format(np.corrcoef(x_coordinates, y_coordinates)[1][0]))
+    # a, b = np.polyfit(x_coordinates, y_coordinates, 1)
+    # print('y = {} x + {}'.format(a, b))
+    # plt.plot(x_coordinates, a * x_coordinates + b, c='red')
+    plt.savefig('images/reasons_for_delays.png', dpi=300)
+    plt.show()
+
+
+def get_data_with_distance_for_question_5(year):
+    # get data from pickle
+    data_frame = get_data_frame_from_pickle('pickles/pickle_{}.pkl'.format(year))
+    my_filter = [
+        # "Year",
+        # "Month",
+        'Cancelled',
+        "ArrDelay",
+        "Distance"
+    ]
+    data_frame = data_frame.filter(my_filter)
+    data_frame = data_frame.dropna()
+    data_frame = data_frame[data_frame['Cancelled'] == 0]
+    data_frame = data_frame[data_frame['ArrDelay'] > 0]
+    data_frame = data_frame.filter(['Distance', 'ArrDelay'])
+    return data_frame
+
+
+def get_correlation_coefficients_between_distance_and_delay():
+    correlation_coefficients = dict()
+    for year in years:
+        df = get_data_with_distance_for_question_5(year)
+        # correlation coefficient
+        x_coordinates = df['Distance'].astype(str).astype(float)
+        y_coordinates = df['ArrDelay'].astype(str).astype(float)
+        rcoef = np.corrcoef(x_coordinates, y_coordinates)[1][0]
+        print('correlation coefficient for year {}: {}'.format(year, rcoef))
+        correlation_coefficients[year] = rcoef
+    return correlation_coefficients
+
+
+def get_data_with_flight_size_for_question_5(year):
+    # get data from pickle
+    data_frame = get_data_frame_from_pickle('pickles/pickle_{}.pkl'.format(year))
+    my_filter = [
+        # "Year",
+        # "Month",
+        "TailNum",
+        'Cancelled',
+        "ArrDelay"
+    ]
+    data_frame = data_frame.filter(my_filter)
+    data_frame = data_frame.dropna()
+    data_frame = data_frame[data_frame['Cancelled'] == 0]
+    data_frame = data_frame[data_frame['ArrDelay'] > 0]
+    data_frame = data_frame.reset_index(drop=True)
+    if len(data_frame) == 0:
+        return None
+    data_frame = data_frame.filter(['TailNum', 'ArrDelay'])
+    return data_frame
+
+
+def get_correlation_coefficients_between_flight_size_and_delay():
+    planes_capacity_dict = get_planes_capacity_dict()
+    correlation_coefficients = dict()
+    for year in years:
+        df = get_data_with_flight_size_for_question_5(year)
+        if df is None:
+            continue
+        df['flight_size'] = df['TailNum'].map(planes_capacity_dict)
+        df = df.dropna()
+        df = df.reset_index(drop=True)
+        # correlation coefficient
+        x_coordinates = df['flight_size'].astype(str).astype(float)
+        y_coordinates = df['ArrDelay'].astype(str).astype(float)
+        rcoef = np.corrcoef(x_coordinates, y_coordinates)[1][0]
+        print('correlation coefficient for year {}: {}'.format(year, rcoef))
+        correlation_coefficients[year] = rcoef
+    return correlation_coefficients
+
+
+def question_5():
+    # we will trace changes of percentage of all reasons for delays out of all delays
+    reasons_list = get_delays_reason_data_for_q5()
+    create_scatter_graph_for_question_5(reasons_list)  # nothing interesting here
+    correlation_coefficients_1 = \
+        get_correlation_coefficients_between_distance_and_delay()  # nothing interesting here
+    correlation_coefficients_2 = get_correlation_coefficients_between_flight_size_and_delay() # nothing interesting here
 
 
 def main():
@@ -859,9 +1018,9 @@ def main():
     # run_only_once_convert_csv_to_pickles()
     # question_1()
     # question_2()
-    question_3()
+    # question_3()
     # question_4()
-    # question_5()
+    question_5()
     t1 = datetime.now()
     print(t1 - t0)
 
@@ -924,3 +1083,4 @@ if __name__ == '__main__':
 # data_frame_grouped_by_days = data_frame.groupby('DayOfWeek', as_index=False)['ArrDelay']
 # print(data_frame[data_frame['ArrDelay'] < -180])
 #
+# pd.set_option("display.max_columns", None)  # to see the whole df.head
