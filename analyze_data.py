@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 from matplotlib import dates as mdates
 import numpy as np
+from prettytable import PrettyTable
 
 # global variables
 years = [year for year in range(1987, 2009)]
@@ -193,7 +194,7 @@ def create_scatter_graph_with_regression(data_frame,
 
     # line of regression
     print('rcoef: {}'.format(np.corrcoef(x_coordinates, y_coordinates)[1][0]))
-    a, b = np.polyfit(x_coordinates, y_coordinates, 1)
+    a, b = np.polyfit(x_coordinates, y_coordinates, 1)[:2]
     print('y = {} x + {}'.format(a, b))
     plt.plot(x_coordinates, a * x_coordinates + b, c='red')
     plt.savefig(file_name)
@@ -498,6 +499,17 @@ def question_2():
 
 # methods for question 3
 def get_flights_data_for_question_3(year, origin_airports, dest_airports):
+    """
+    Args:
+        year:
+        origin_airports:
+        dest_airports:
+
+    Returns:
+        a tuple:
+            number of flights from origin_airports to destination_airports
+            list of tail numbers from those flights
+    """
     # get data from pickle
     data_frame = get_data_frame_from_pickle('pickles/pickle_{}.pkl'.format(year))
     my_filter = [
@@ -519,7 +531,6 @@ def get_flights_data_for_question_3(year, origin_airports, dest_airports):
         ]
     # we do not filter out TailNum == None as it turns out that before 1995 tail numbers were not collected
 
-    # todo return number of flights and (for year >= 1995) list of tail numbers
     return len(data_frame), list(data_frame.dropna(subset=['TailNum'])['TailNum']) if year >= 1995 else []
 
 
@@ -535,30 +546,11 @@ def get_origin_and_dest_airports_from_states(origin_states, dest_states):
 
 
 def get_model_capacity_dict():
-    # todo get the model_capacity_dict from df / csv
-    model_capacity_dict = {
-        "EMB-145XR": 37,
-        "A320-214": 144,
-        "737-3TO": 168,
-        "747-422": 660,
-        "EMB-145LR": 37,
-        "747-451": 376,
-        "737-824": 162,
-        "EMB-135LR": 37,
-        "737-524": 147,
-        "767-332": 221,
-        "757-224": 200,
-        "737-76N": 130,
-        "EMB-145EP": 37,
-        "DC-9-31": 80,
-        "737-724": 85,
-        "EMB-135ER": 37,
-        "767-3P6": 269,
-        "737-3G7": 126,
-        "CL-600-2B19": 50,
-        "A321-211": 200,
-        "737-33A": 144
-    }
+    model_capacity_dict = dict()
+    with open('dataverse_files/data_other/models_capacities.csv') as csvfile:
+        f = csv.reader(csvfile)
+        for row in f:
+            model_capacity_dict[row[0]] = int(row[1])
     return model_capacity_dict
 
 
@@ -586,7 +578,8 @@ def get_planes_capacity_dict():
     return plane_capacity_dict
 
 
-def get_question_3_dataframe(planes_capacity_dict, origin_airports, dest_airports):
+def get_question_3_dataframe(origin_airports, dest_airports):
+    planes_capacity_dict = get_planes_capacity_dict()
     q3_data_frame = pd.DataFrame(columns=['year',
                                           'number_of_flights',
                                           'number_of_passengers',
@@ -601,7 +594,7 @@ def get_question_3_dataframe(planes_capacity_dict, origin_airports, dest_airport
                                                   if tail_number not in planes_capacity_dict])
         yearly_tuple = (year, number_of_flights, number_of_passengers, number_of_flights_without_a_record)
         q3_data_frame = q3_data_frame.append(pd.Series(yearly_tuple, index=q3_data_frame.columns), ignore_index=True)
-        with open('excel_files/question_3_data.csv', 'a', newline='') as f:
+        with open('dataverse_files/question_3_data.csv', 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(yearly_tuple)
         print(yearly_tuple)
@@ -613,12 +606,10 @@ def question_3():
     east_coast_states = ['ME', 'NH', 'MA', 'RI', 'CT', 'NJ', 'DE', 'MD', 'VA', 'NC', 'SC', 'GA', 'FL']
     west_coast_airports, east_coast_airports = get_origin_and_dest_airports_from_states(west_coast_states,
                                                                                         east_coast_states)
-    # todo: should this be moved inside get_question_3_dataframe?
-    planes_capacity_dict = get_planes_capacity_dict()
 
     # q3_data_frame will have the following columns:
-    # year, number_of_flights, number_of_passengers or 0 / None, number_of_flights_without_a_record
-    q3_data_frame = get_question_3_dataframe(planes_capacity_dict, west_coast_airports, east_coast_airports)
+    # year, number_of_flights, number_of_passengers or 0, number_of_flights_without_a_record
+    q3_data_frame = get_question_3_dataframe(west_coast_airports, east_coast_airports)
     # correlation no of flights on year
     create_scatter_graph_with_regression(data_frame=q3_data_frame,
                                          df_x_column='year',
@@ -679,11 +670,15 @@ def get_jfk_planes(data_frame,
 
 def display_cascade(year, cause, effect):
     def get_string(plane, action_verb):
-        arr_time_string = '{}{}{}{}'.format(year,                           # year
-                                            str(plane[0]).rjust(2, '0'),    # month
-                                            plane[1],
-                                            plane[2])
-        arr_time = datetime.strptime(arr_time_string, '%Y%m%d%H%M')
+        arr_year, arr_month, arr_day = year, plane[0], plane[1]
+        arr_hour, arr_minute = divmod(int(plane[2]), 100)
+        extra_days = arr_hour // 24
+        arr_hour = arr_hour % 24
+        arr_time = datetime(year,
+                            arr_month,
+                            arr_day,
+                            arr_hour,
+                            arr_minute) + timedelta(days=extra_days)
         date = arr_time.strftime('%d/%m/%Y')
         arr_time_str = arr_time.strftime('%H:%M')
         action_verb_past = action_verb.strip('e')
@@ -773,8 +768,6 @@ def question_4():
                                          planes_dict=planes_dict,
                                          type_of_planes=small_planes
                                          )
-    show(data_frame_to_jfk, 4)
-    show(data_frame_from_jfk, 4)
     possible_cascades = dict()
     # key - large plane late to JFK
     # value - list of small planes late from JFK, whose delays could be caused by the large plane
@@ -789,15 +782,33 @@ def question_4():
                              row['TailNum']
                              )
         # change arrival times (both real and CRS) into datetime objects to include connection time:
-        arr_time_datetime = datetime.strptime(str(int(row['ArrTime'])), '%H%M')
-        crs_arr_time_datetime = datetime.strptime(str(int(row['CRSArrTime'])), '%H%M')
+        arr_time_month, arr_time_day = row['Month'], row['DayofMonth']
+        crs_arr_time_month, crs_arr_time_day = arr_time_month, arr_time_day
+        arr_time_hhmm = int(row['ArrTime'])
+        arr_time_hour, arr_time_minute = divmod(arr_time_hhmm, 100)
+        extra_days = arr_time_hour // 24
+        arr_time_hour = arr_time_hour % 24
+        arr_time_datetime = datetime(year,
+                                     arr_time_month,
+                                     arr_time_day,
+                                     arr_time_hour,
+                                     arr_time_minute) + timedelta(days=extra_days)
+        crs_arr_time_hhmm = int(row['CRSArrTime'])
+        crs_arr_time_hour, crs_arr_time_minute = divmod(crs_arr_time_hhmm, 100)
+        extra_days = crs_arr_time_hour // 24
+        crs_arr_time_hour = crs_arr_time_hour % 24
+        crs_arr_time_datetime = datetime(year,
+                                         crs_arr_time_month,
+                                         crs_arr_time_day,
+                                         crs_arr_time_hour,
+                                         crs_arr_time_minute) + timedelta(days=extra_days)
         # add connection time
         arr_time_datetime_with_connection = arr_time_datetime + connection_time
         crs_arr_time_datetime_with_connection = crs_arr_time_datetime + connection_time
         # change back to integers
         arr_time_with_connection = int(arr_time_datetime_with_connection.strftime('%H%M'))
         crs_arr_time_with_connection = int(crs_arr_time_datetime_with_connection.strftime('%H%M'))
-        #
+
         # now from dataframe of planes late from JFK we have to choose those that can be late because of the plane above
         cascade_planes_df = data_frame_from_jfk[
             # same month
@@ -1004,13 +1015,301 @@ def get_correlation_coefficients_between_flight_size_and_delay():
     return correlation_coefficients
 
 
+def get_late_planes_list(year, from_pickle=True):
+    # returns a list of tuples:
+    # (tail_number, number_of_flights, total_duration, number_of_delays, total_delays_duration)
+    # get data from pickle
+    if from_pickle:
+        q5_data_frame = get_data_frame_from_pickle('pickles/delayed_planes_{}.pkl'.format(year))
+        late_planes_list = list()
+        for idx, row in q5_data_frame.iterrows():
+            late_planes_list.append(tuple(row))
+    else:
+        data_frame = get_data_frame_from_pickle('pickles/pickle_{}.pkl'.format(year))
+        my_filter = [
+            # "Year",
+            # "Month",
+            "TailNum",
+            'AirTime',
+            'Cancelled',
+            "ArrDelay"
+        ]
+        data_frame = data_frame.filter(my_filter)
+        data_frame = data_frame.dropna()
+        data_frame = data_frame[data_frame['Cancelled'] == 0]
+        data_frame = data_frame.reset_index(drop=True)
+        if len(data_frame) == 0:
+            return None
+        data_frame = data_frame.filter(['TailNum', 'ArrDelay', 'AirTime'])
+        tail_numbers = list(data_frame['TailNum'].unique())
+        late_planes_dict = dict()
+        for tail_number in tail_numbers:
+            late_planes_dict[tail_number] = (0, 0, 0, 0)
+        no_of_rows = len(data_frame)
+        many_perc = 0
+        for idx, row in data_frame.iterrows():
+            if idx > (many_perc + 1) * no_of_rows / 100:
+                many_perc += 1
+                print('{}%'.format(many_perc))
+            tail_number, delay, duration = row
+            no, tot, no_d, tot_d = late_planes_dict[tail_number]
+            late_planes_dict[tail_number] = (no + 1,
+                                             tot + duration,
+                                             no_d + 1 if delay > 0 else 0,
+                                             tot_d + delay if delay > 0 else 0)
+        late_planes_list = list()
+        q5_data_frame = pd.DataFrame(columns=['tail_number',
+                                              'number_of_flights',
+                                              'total_duration',
+                                              'number_of_delays',
+                                              'total_delays_duration'])
+        for tail_number in late_planes_dict:
+            plane_tuple = (tail_number, *late_planes_dict[tail_number])
+            late_planes_list.append(plane_tuple)
+            q5_data_frame = q5_data_frame.append(pd.Series(plane_tuple,
+                                                           index=q5_data_frame.columns),
+                                                 ignore_index=True)
+        q5_data_frame.to_pickle('pickles/delayed_planes_{}.pkl'.format(year))
+
+    return late_planes_list
+
+
+def get_planes_with_delays_ratio(planes_list, ratio):
+    planes_list.sort(key=lambda x: x[1], reverse=True)
+    new_planes_list = list()
+    for plane in planes_list:
+        if plane[3] / plane[1] > ratio:
+            new_planes_list.append(plane)
+    return new_planes_list
+
+
+def show_number_of_planes_with_delays_ratio(year, ratio, number=None, from_pickle=True):
+    late_planes_list = get_late_planes_list(year, from_pickle)
+    late_planes_list = get_planes_with_delays_ratio(late_planes_list, ratio)
+    # (origin, destination, total_duration, number_of_delays, total_delays_duration)
+    table = PrettyTable()
+    table.field_names = ['tail number',
+                         'number of flights',
+                         'total duration',
+                         'number of delays',
+                         'total delays duration']
+    if number is None:
+        number = len(late_planes_list)
+    for row in late_planes_list[:number]:
+        table.add_row(row)
+    print(table)
+    if number < len(late_planes_list):
+        print('There are {} more rows that are not displayed.'.format(len(late_planes_list) - number))
+
+
+def get_delayed_routes_list(year, from_pickle=True):
+    # returns a list of tuples:
+    # (origin, destination, number_of_flights, number_of_delays)
+    # get data from pickle
+    if from_pickle:
+        q5_data_frame = get_data_frame_from_pickle('pickles/delayed_routes_{}.pkl'.format(year))
+        delayed_routes_list = list()
+        for idx, row in q5_data_frame.iterrows():
+            delayed_routes_list.append(tuple(row))
+    else:
+        data_frame = get_data_frame_from_pickle('pickles/pickle_{}.pkl'.format(year))
+        my_filter = [
+            # "Year",
+            # "Month",
+            "Origin",
+            "Dest",
+            # 'AirTime',
+            'Cancelled',
+            "ArrDelay"
+        ]
+        data_frame = data_frame.filter(my_filter)
+        data_frame = data_frame.dropna()
+        data_frame = data_frame[data_frame['Cancelled'] == 0]
+        data_frame = data_frame.reset_index(drop=True)
+        if len(data_frame) == 0:
+            return None
+        data_frame = data_frame.filter(['Origin', 'Dest', 'ArrDelay'])
+        origins = list(data_frame['Origin'].unique())
+        destinations = list(data_frame['Dest'].unique())
+        delayed_routes_dict = dict()
+        for origin in origins:
+            for destination in destinations:
+                delayed_routes_dict[(origin, destination)] = (0, 0)
+        no_of_rows = len(data_frame)
+        many_perc = 0
+        for idx, row in data_frame.iterrows():
+            if idx > (many_perc + 1) * no_of_rows / 100:
+                many_perc += 1
+                print('{}%'.format(many_perc))
+            origin, destination, delay = row
+            flights_number, delays_number = delayed_routes_dict[(origin, destination)]
+            delayed_routes_dict[(origin, destination)] = (flights_number + 1,
+                                                          delays_number + 1 if delay > 0 else 0)
+        delayed_routes_list = list()
+        q5_data_frame = pd.DataFrame(columns=['origin',
+                                              'destination',
+                                              'number_of_flights',
+                                              'number_of_delays'])
+        for route in delayed_routes_dict:
+            route_tuple = (*route, *delayed_routes_dict[route])
+            if route_tuple[-1] == 0:
+                continue
+            delayed_routes_list.append(route_tuple)
+            q5_data_frame = q5_data_frame.append(pd.Series(route_tuple,
+                                                           index=q5_data_frame.columns),
+                                                 ignore_index=True)
+        q5_data_frame.to_pickle('pickles/delayed_routes_{}.pkl'.format(year))
+
+    return delayed_routes_list
+
+
+def get_routes_with_delays_ratio(routes_list, ratio):
+    routes_list.sort(key=lambda x: x[3]/x[2], reverse=True)
+    routes_list.sort(key=lambda x: x[2], reverse=True)
+    new_routes_list = list()
+    for plane in routes_list:
+        if plane[3] / plane[2] > ratio:
+            new_routes_list.append(plane)
+    return new_routes_list
+
+
+def show_number_of_routes_with_delays_ratio(year, ratio, number=None, from_pickle=True):
+    delayed_routes_list = get_delayed_routes_list(year, from_pickle)
+    delayed_routes_list = get_routes_with_delays_ratio(delayed_routes_list, ratio)
+    # (origin, destination, number_of_flights, number_of_delays)
+    table = PrettyTable()
+    table.field_names = ['origin',
+                         'destination',
+                         'number of flights',
+                         'number of delays']
+    if number is None:
+        number = len(delayed_routes_list)
+    for row in delayed_routes_list[:number]:
+        table.add_row(row)
+    print(table)
+    if number < len(delayed_routes_list):
+        print('There are {} more rows that are not displayed.'.format(len(delayed_routes_list) - number))
+
+
+def get_airports_causing_delays_list(year, airport_type, from_pickle=True):
+    # returns a list of tuples:
+    # (origin / destination, number_of_flights, number_of_delays)
+    # get data from pickle
+    if from_pickle:
+        q5_data_frame = get_data_frame_from_pickle('pickles/delaying_{}_airports_{}.pkl'.format(airport_type, year))
+        airports_causing_delays_list = list()
+        for idx, row in q5_data_frame.iterrows():
+            airports_causing_delays_list.append(tuple(row))
+    else:
+        data_frame = get_data_frame_from_pickle('pickles/pickle_{}.pkl'.format(year))
+        my_filter = [
+            # "Year",
+            # "Month",
+            airport_type,  # "Origin" or "Dest",
+            # 'AirTime',
+            'Cancelled',
+            "ArrDelay"
+        ]
+        data_frame = data_frame.filter(my_filter)
+        data_frame = data_frame.dropna()
+        data_frame = data_frame[data_frame['Cancelled'] == 0]
+        data_frame = data_frame.reset_index(drop=True)
+        if len(data_frame) == 0:
+            return None
+        data_frame = data_frame.filter([airport_type, 'ArrDelay'])
+        airports = list(data_frame[airport_type].unique())
+        airports_causing_delays_dict = dict()
+        for airport in airports:
+            airports_causing_delays_dict[airport] = (0, 0)
+        no_of_rows = len(data_frame)
+        many_perc = 0
+        for idx, row in data_frame.iterrows():
+            if idx > (many_perc + 1) * no_of_rows / 100:
+                many_perc += 1
+                print('{}%'.format(many_perc))
+            # if many_perc > 10:  # todo REMOVE THIS
+            #     break
+            airport, delay = row
+            flights_number, delays_number = airports_causing_delays_dict[airport]
+            airports_causing_delays_dict[airport] = (flights_number + 1,
+                                                     delays_number + 1 if delay > 0 else 0)
+        airports_causing_delays_list = list()
+        q5_data_frame = pd.DataFrame(columns=[airport_type.lower(),
+                                              'number_of_flights',
+                                              'number_of_delays'])
+        for airport in airports_causing_delays_dict:
+            airport_tuple = (airport, *airports_causing_delays_dict[airport])
+            if airport_tuple[-1] == 0:
+                continue
+            airports_causing_delays_list.append(airport_tuple)
+            q5_data_frame = q5_data_frame.append(pd.Series(airport_tuple,
+                                                           index=q5_data_frame.columns),
+                                                 ignore_index=True)
+        q5_data_frame.to_pickle('pickles/delaying_{}_airports_{}.pkl'.format(airport_type, year))
+
+    return airports_causing_delays_list
+
+
+def get_airports_causing_delays_ratio(airports_list, ratio):
+    airports_list.sort(key=lambda x: x[2] / x[1], reverse=True)
+    airports_list.sort(key=lambda x: x[1], reverse=True)
+    new_airports_list = list()
+    for airport in airports_list:
+        if airport[2] / airport[1] > ratio:
+            new_airports_list.append(airport)
+    return new_airports_list
+
+
+def show_number_of_airports_with_delays_ratio(year, ratio, airport_type, number=None, from_pickle=True):
+    airports_causing_delays_list = get_airports_causing_delays_list(year, airport_type, from_pickle)
+    airports_causing_delays_list = get_airports_causing_delays_ratio(airports_causing_delays_list, ratio)
+    # (origin / destination, number_of_flights, number_of_delays)
+    table = PrettyTable()
+    table.field_names = [airport_type.lower(),  # 'origin' or 'destination'
+                         'number of flights',
+                         'number of delays']
+    if number is None:
+        number = len(airports_causing_delays_list)
+    for row in airports_causing_delays_list[:number]:
+        table.add_row(row)
+    print(table)
+    if number < len(airports_causing_delays_list):
+        print('There are {} more rows that are not displayed.'.format(len(airports_causing_delays_list) - number))
+
+
 def question_5():
+    # attempt 1
     # we will trace changes of percentage of all reasons for delays out of all delays
-    reasons_list = get_delays_reason_data_for_q5()
-    create_scatter_graph_for_question_5(reasons_list)  # nothing interesting here
-    correlation_coefficients_1 = \
-        get_correlation_coefficients_between_distance_and_delay()  # nothing interesting here
-    correlation_coefficients_2 = get_correlation_coefficients_between_flight_size_and_delay() # nothing interesting here
+    # reasons_list = get_delays_reason_data_for_q5()
+    # create_scatter_graph_for_question_5(reasons_list)  # nothing interesting here
+    # attempt 2
+    # correlation between distance of a flight and delay
+    # correlation_coefficients_1 = \
+    #     get_correlation_coefficients_between_distance_and_delay()  # nothing interesting here
+    # attempt 3
+    # correlation between flight size (plane capacity) and delay
+    # correlation_coefficients_2 =
+    #     get_correlation_coefficients_between_flight_size_and_delay() # nothing interesting here
+    # attempt 4
+    # are there planes that are frequently late?
+    # show_number_of_planes_with_delays_ratio(2006, 0.15, 20)
+    # when called for the first time:
+    # show_number_of_planes_with_delays_ratio(year, ratio, number, from_pickle=False)
+    # attempt 5
+    # are there routes on which planes are frequently delayed?
+    # show_number_of_routes_with_delays_ratio(2006, 0.4, 20)
+    # when called for the first time:
+    # show_number_of_routes_with_delays_ratio(2006, 0.15, 20, from_pickle=False)
+    # attempt 6
+    # are there airports that may be blamed for delays
+    show_number_of_airports_with_delays_ratio(2006, 0.1, 'Origin', 20)  # , from_pickle=False)  # just 1 airport
+    show_number_of_airports_with_delays_ratio(2006, 0.05, 'Dest', 20)  # , from_pickle=False)  # just 1 airport
+    # when called for the first time:
+    # show_number_of_airports_with_delays_ratio(2006, 0.15, 'Origin' / 'Dest', 20, from_pickle=False)
+
+    # possible further attempts:
+    # models that cause delays
+    # checking large planes from / to large airports
 
 
 def main():
@@ -1019,8 +1318,8 @@ def main():
     # question_1()
     # question_2()
     # question_3()
-    # question_4()
-    question_5()
+    question_4()
+    # question_5()
     t1 = datetime.now()
     print(t1 - t0)
 
@@ -1060,20 +1359,12 @@ def main():
 if __name__ == '__main__':
     main()
 
-# def convert_csv_data_into_pickle(pickle_name='all_data.pkl'):
-#     print('starting conversion')
-#     csv_files_list = ['dataverse_files/data_years/' + str(year) + '.csv' for year in years]
-#     # merging csv files
-#     df = pd.concat(map(lambda file: pd.read_csv(file, encoding="ISO-8859-1"), csv_files_list), ignore_index=True)
-#     df.to_pickle(pickle_name)
-#     print('conversion complete')
-    # alternative way of getting data from pickle:
-    # store = pd.HDFStore('store.h5')
-    # store['df'] = df  # save it
-    # store['df']  # load it
-
 
 # for later use:
+# merging csv files
+# df = pd.concat(map(lambda file: pd.read_csv(file, encoding="ISO-8859-1"), csv_files_list), ignore_index=True)
+# save to pickle
+# df.to_pickle(pickle_name)
 # print(data_frame['Cancelled'].value_counts())
 # print(data_frame['DayOfWeek'].unique())
 # print(data_frame_grouped_by_days.describe())

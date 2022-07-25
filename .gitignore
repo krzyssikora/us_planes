@@ -99,3 +99,7 @@ models_capacities.csv
 pickles/delay_vs_age.pkl
 
 planes_models.txt
+
+dataverse_files/question_3_data.csv
+
+*.pkl
