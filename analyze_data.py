@@ -668,6 +668,31 @@ def get_jfk_planes(data_frame,
     return data_frame
 
 
+def append_cascade_data_to_csv(year, cause, effect, csv_file):
+    def get_list(plane):
+        arr_year, arr_month, arr_day = year, plane[0], plane[1]
+        arr_hour, arr_minute = divmod(int(plane[2]), 100)
+        extra_days = arr_hour // 24
+        arr_hour = arr_hour % 24
+        arr_time = datetime(year,
+                            arr_month,
+                            arr_day,
+                            arr_hour,
+                            arr_minute) + timedelta(days=extra_days)
+        date = arr_time.strftime('%d/%m/%Y')
+        arr_time_str = arr_time.strftime('%H:%M')
+        ret_list = [plane[5], date + ' ' + str(plane[3])[:-2] + ':' + str(plane[3])[-2:], plane[4], date + ' ' + arr_time_str]
+        return ret_list
+
+    csv_list = list()
+    csv_list += get_list(cause)
+    csv_list += get_list(effect)
+
+    with open(csv_file, 'a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(csv_list)
+
+
 def display_cascade(year, cause, effect):
     def get_string(plane, action_verb):
         arr_year, arr_month, arr_day = year, plane[0], plane[1]
@@ -839,12 +864,19 @@ def question_4():
     planes_to_jfk.sort(key=lambda x: x[1])  # sort by day of month
     planes_to_jfk.sort(key=lambda x: x[0])  # sort by month
     # print out results
+    csv_file = 'c:/Users/krzys/Documents/teaching/LSE_Tamara/coursework/dataverse_files/' \
+               'q4_cascades_data_python.csv'
+    with open(csv_file, 'a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['tailnumber_large', 'planned_arrival', 'arr_delay', 'real_arrival',
+                         'tailnumber_small', 'planned_departure', 'dep_delay', 'real_dep'])
     counter = 0
     for large_plane in planes_to_jfk:
         for small_plane in possible_cascades[large_plane]:
             counter += 1
-            print(counter)
-            display_cascade(year, large_plane, small_plane)
+            # print(counter)
+            # display_cascade(year, large_plane, small_plane)
+            append_cascade_data_to_csv(year, large_plane, small_plane, csv_file)
 
 
 def get_flights_dataframe_for_question_5(year):

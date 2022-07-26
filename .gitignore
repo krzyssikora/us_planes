@@ -109,3 +109,7 @@ dataverse_files/q4_cascades_data_python.csv
 dataverse_files/q4_cascades_data_R.csv
 
 q4_output_R.txt
+
+project_workspace.RDataTmp
+
+project_workspace.RData
