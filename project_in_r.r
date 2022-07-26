@@ -1,9 +1,13 @@
+##### PACKAGES - FOR ALL QUESTIONS #####
+
+
 # install packages
 install.packages('dplyr')
 install.packages('tidyverse')
 install.packages('tidyr')
-install.packages("ggplot2") # for graphs
-install.packages('hash')   # for dictionary-like objects
+install.packages("ggplot2")   # for graphs
+install.packages('hash')      # for dictionary-like objects
+install.packages("lubridate") # for time manipulation
 
 # load packages
 library(dplyr)
@@ -11,6 +15,15 @@ library(tidyverse)
 library(tidyr)
 library(ggplot2)
 library(hash)
+library(lubridate)
+
+
+
+
+##### GENERAL DATA - FOR ALL QUESTIONS #####
+
+
+
 
 substrRight <- function(x, n){
   substr(x, nchar(x)-n+1, nchar(x))
@@ -21,7 +34,7 @@ csv_data_years_path <- paste(csv_data_path, "/data_years", sep = '')
 csv_data_other_path <- paste(csv_data_path, "/data_other", sep = '')
 years = 1987:2008
 
-# for all questions
+
 data_years <- hash()
 for (year in years) {
   # year as a string
@@ -35,6 +48,11 @@ for (year in years) {
   # store in a dictionary
   data_years[str_year] <- yearly_data_frame
 }
+
+
+
+##### QUESTION 1 #####
+
 
 
 question_1 <- function() {
@@ -81,6 +99,14 @@ question_1 <- function() {
 }
 
 question_1()
+
+
+
+
+##### QUESTION 2 #####
+
+
+
 
 # for question 2
 plane_data_data_frame <- paste(csv_data_other_path, '/', 'plane-data.csv', sep='') %>% 
@@ -141,6 +167,10 @@ question_2 <- function() {
 
 question_2()
 
+
+
+
+##### QUESTION 3 #####
 
 
 
@@ -313,3 +343,232 @@ question_3 <- function(q3_data) {
 }
 
 question_3(q3_data)
+
+
+
+
+##### QUESTION 4 #####
+
+
+
+
+# data for question 4:
+# define small planes as those with capacity below 100 passengers
+small_planes = c("A109E", "A-1B", "AS 355F1", "ATR 72-212", "ATR-72-212", "C90",
+                "CL-600-2B19", "CL-600-2C10", "CL600-2D24", "DA 20-A1", "DC-7BF",
+                "DHC-8-102", "DHC-8-202", "E-90", "EMB-120", "EMB-120ER", "EMB-135ER",
+                "EMB-135KL", "EMB-135LR", "EMB-145", "EMB-145EP", "EMB-145EP",
+                "EMB-145LR", "EMB-145XR", "ERJ 190-100 IGW", "EXEC 162F", "F85P-1",
+                "FALCON XP", "FALCON-XP", "G-IV", "HST-550", "KITFOX IV", "M-5-235C",
+                "OTTER DHC-3", "PA-28-180", "PA-31-350", "PA-32R-300", "PA-32RT-300",
+                "S-50A", "S-76A", "SAAB 340B", "T210N", "T337G", "VANS AIRCRAFT RV6")
+
+# define large planes as those with capacity of at least 200 passengers
+large_planes = c("737-832", "737-924", "737-924ER", "737-990", "747-2B5F",
+                "747-422", "747-451", "757-212", "757-222", "757-223",
+                "757-224", "757-225", "757-231", "757-232", "757-23N",
+                "757-251", "757-26D", "757-2B7", "757-2G7", "757-2Q8",
+                "757-2S7", "757-324", "757-33N", "757-351", "767-201",
+                "767-223", "767-224", "767-2B7", "767-322", "767-323",
+                "767-324", "767-332", "767-33A", "767-3CB", "767-3G5",
+                "767-3P6", "767-424ER", "767-432ER", "777-222", "777-224",
+                "777-232", "777-232LR", "A321-211", "A330-223", "A330-323")
+# prepare a dataframe with info whether a tailnumber is for a small or a large plane
+# (other planes will not be included)
+planes_data_frame <- read.csv(paste(csv_data_other_path, '/', 'plane-data.csv', sep=''))
+planes_data_frame <- as.data.frame(planes_data_frame)
+planes_data_frame <- planes_data_frame %>% 
+  select(tailnum, model) %>% 
+  drop_na()
+
+planes_data_frame$small_planes <- as.list(rep(list(small_planes), nrow(planes_data_frame)))
+planes_data_frame$large_planes <- as.list(rep(list(large_planes), nrow(planes_data_frame)))
+
+planes_data_frame$plane_type_small <- c("", "small")[mapply(`%in%`,
+                                                            planes_data_frame$model,
+                                                            planes_data_frame$small_planes) + 1]
+planes_data_frame$plane_type_large <- c("", "large")[mapply(`%in%`,
+                                                            planes_data_frame$model,
+                                                            planes_data_frame$large_planes) + 1]
+planes_data_frame$plane_type <- paste(planes_data_frame$plane_type_small, 
+                                      planes_data_frame$plane_type_large,
+                                      sep = "")
+planes_data_frame <- planes_data_frame %>% 
+  select(tailnum, plane_type) %>% 
+  filter(!plane_type == "")
+
+# get small planes from JFK and large to JFK from the year
+connection_time = 30
+delay_value = 60
+year = 2007
+str_year <- as.character(year)
+yearly_data_frame <- data_years[[str_year]]
+
+as.data.frame(yearly_data_frame)
+
+yearly_data_frame <- yearly_data_frame %>% 
+  filter(Cancelled == 0) %>%                               # filter flights that were not cancelled
+  select(Year, Month, DayofMonth, 
+         TailNum, 
+         ArrTime, CRSArrTime, ArrDelay, 
+         DepTime, CRSDepTime, DepDelay,
+         Origin, Dest) %>%                                 # narrow data
+  filter((Origin == 'JFK') | (Dest == 'JFK')) %>% 
+  drop_na() %>%                                            # drop N/A values
+  mutate(flight_date = as.Date(paste(as.character(Year), '/',# adds a column with date in proper format
+                                     as.character(Month), '/',
+                                     as.character(DayofMonth),
+                                     sep = ''),
+                               "%Y/%m/%d"
+  )) %>% 
+  select(-c(Year, Month, DayofMonth)) %>% 
+  mutate(arr_time = flight_date 
+         + hours(floor(ArrTime / 100))
+         + minutes(ArrTime %% 100)
+         ) %>% 
+  select(-ArrTime) %>% 
+  mutate(arr_time_w_connection = arr_time
+         + minutes(connection_time)) %>% 
+  mutate(crs_arr_time = flight_date
+         + hours(floor(CRSArrTime / 100))
+         + minutes(CRSArrTime %% 100)
+         ) %>% 
+  select(-CRSArrTime) %>% 
+  mutate(crs_arr_time_w_connection = crs_arr_time
+         + minutes(connection_time)) %>% 
+  mutate(dep_time = flight_date 
+         + hours(floor(DepTime / 100))
+         + minutes(DepTime %% 100)
+  ) %>% 
+  select(-DepTime) %>% 
+  mutate(crs_dep_time = flight_date
+         + hours(floor(CRSDepTime / 100))
+         + minutes(CRSDepTime %% 100)
+  ) %>% 
+  select(TailNum, Origin, Dest, flight_date,
+         arr_time, arr_time_w_connection, crs_arr_time, crs_arr_time_w_connection, ArrDelay, 
+         dep_time, crs_dep_time, DepDelay)
+  
+
+q4_data_frame <- merge(x = yearly_data_frame, 
+                       y = planes_data_frame,
+                       by.x = "TailNum",
+                       by.y = 'tailnum')
+
+large_planes_to_JFK <- q4_data_frame %>% 
+  filter((Dest == 'JFK') &
+           (plane_type == 'large') &
+           (ArrDelay > delay_value)) %>% 
+#  select(TailNum, flight_date, arr_time, arr_time_w_connection, crs_arr_time, crs_arr_time_w_connection, ArrDelay, dep_time, crs_dep_time, DepDelay)
+  select(TailNum, flight_date, arr_time, arr_time_w_connection, crs_arr_time, crs_arr_time_w_connection, ArrDelay)
+
+small_planes_from_JFK <- q4_data_frame %>% 
+  filter((Origin == 'JFK') &
+           (plane_type == 'small') &
+           (ArrDelay > delay_value)) %>% 
+  select(TailNum, flight_date, dep_time, crs_dep_time, DepDelay, ArrDelay)
+
+# prepare an empty csv file to store data about possible cascading delays
+q4_cascades_columns <- c('tailnumber_large',
+                         'planned_arrival',
+                         'arr_delay',
+                         'real_arrival',
+                         'tailnumber_small',
+                         'planned_departure',
+                         'dep_delay',
+                         'real_dep')
+# three lines below should be run once only:
+q4_cascades_data <- data.frame(matrix(nrow = 0, ncol = length(q4_cascades_columns))) 
+colnames(q4_cascades_data) = q4_cascades_columns 
+write.csv(q4_cascades_data, paste(csv_data_path, '/', 'q4_cascades_data_R.csv', sep=''), row.names = FALSE)
+
+# loop through large planes to find for each large plane those small planes that could be late because of the large one
+for (idx in 1:nrow(large_planes_to_JFK)) {
+  # collect large plane data
+  # those that we will need for csv
+  tailnumber_large <-
+    as.character(large_planes_to_JFK[idx,]['TailNum'])
+  planned_arrival <-
+    as.POSIXct(large_planes_to_JFK[idx,]['crs_arr_time'][[1]])
+  arr_delay <- as.numeric(large_planes_to_JFK[idx,]['ArrDelay'])
+  real_arrival <-
+    as.POSIXct(large_planes_to_JFK[idx,]['arr_time'][[1]])
+  # those that we will not need for csv
+  flight_date_large_plane = as.Date(large_planes_to_JFK[idx,]['flight_date'][[1]])
+  arrival_w_connection <-
+    as.POSIXct(large_planes_to_JFK[idx,]['arr_time_w_connection'][[1]])
+  planned_arrival_w_connection <-
+    as.POSIXct(large_planes_to_JFK[idx,]['crs_arr_time_w_connection'][[1]])
+  # find small planes
+  temp_small_planes <- small_planes_from_JFK %>%
+    filter((flight_date == flight_date_large_plane) &
+             (dep_time > arrival_w_connection) &
+             (crs_dep_time > planned_arrival_w_connection) &
+             (crs_dep_time < real_arrival)
+    )
+  # loop through small planes to add all pairs (large, small) to csv
+  if(nrow(temp_small_planes) > 0) {
+    for (idx2 in 1:nrow(temp_small_planes)) {
+      # collect small plane data for csv
+      tailnumber_small <-
+        as.character(temp_small_planes[idx2,]['TailNum'])
+      planned_departure <-
+        as.POSIXct(temp_small_planes[idx2,]['crs_dep_time'][[1]])
+      dep_delay <- as.numeric(temp_small_planes[idx2,]['DepDelay'])
+      real_dep <-
+        as.POSIXct(temp_small_planes[idx2,]['dep_time'][[1]])
+      cascade_summary <-
+        data.frame(
+          tailnumber_large,
+          planned_arrival,
+          arr_delay,
+          real_arrival,
+          tailnumber_small,
+          planned_departure,
+          dep_delay,
+          real_dep
+        )
+      colnames(cascade_summary) <- q4_cascades_columns
+      q4_cascades_data <- rbind(q4_cascades_data, cascade_summary)
+      write.csv(
+        q4_cascades_data,
+        paste(csv_data_path, '/', 'q4_cascades_data_R.csv', sep = ''),
+        row.names = FALSE
+      )
+    }
+  }
+}
+
+# get the information printed into txt file
+q4_data <- read.csv(paste(csv_data_path, '/', 'q4_cascades_data_R.csv', sep=''))
+for (idx in 1:nrow(q4_data)) {
+  tailnumber_large <- as.character(q4_data[idx, ]['tailnumber_large'])
+  planned_arrival <- as.character(q4_data[idx, ]['planned_arrival'])
+  arr_delay <- as.character(q4_data[idx, ]['arr_delay'])
+  real_arrival <- as.character(q4_data[idx, ]['real_arrival'])
+  tailnumber_small <- as.character(q4_data[idx, ]['tailnumber_small'])
+  planned_departure <- as.character(q4_data[idx, ]['planned_departure'])
+  dep_delay <- as.character(q4_data[idx, ]['dep_delay'])
+  real_dep <- as.character(q4_data[idx, ]['real_dep'])
+  message <- paste(as.character(idx),
+                   '\n',
+                   'Plane with tail number ', 
+                   tailnumber_large, 
+                   ' was supposed to arrive at ', 
+                   planned_arrival,
+                   ', but it was ',
+                   arr_delay,
+                   ' minutes late, so it arrived at ',
+                   real_arrival,
+                   '. Plane with tail number ',
+                   tailnumber_small,
+                   ' was supposed to depart at ',
+                   planned_departure,
+                   ' but it was ',
+                   dep_delay,
+                   ' minutes late, so it departed at ',
+                   real_dep,
+                   '. \n',
+                   sep = '')
+  write(message,file="q4_output_R.txt",append=TRUE)
+}
